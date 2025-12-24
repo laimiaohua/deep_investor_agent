@@ -1,3 +1,5 @@
+version: '3.8'
+
 # 不使用 Docker Nginx 的配置
 # 适用于服务器上已有 Nginx 运行的情况
 # 使用方法: docker compose -f docker-compose.prod-no-nginx.yml up -d
