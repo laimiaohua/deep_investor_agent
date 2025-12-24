@@ -63,5 +63,10 @@ outputs/
 *.sqlite
 *.sqlite3
 
+# Logs (防止 API Key 泄露)
+logs/
+*.log
+*.log.*
+
 # Alembic (keep migration files, but ignore generated/cache files)
 app/backend/alembic/versions/__pycache__/
