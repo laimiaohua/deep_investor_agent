@@ -137,13 +137,22 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
         total_signals = len(signals)
         confidence = round(max(bullish_signals, bearish_signals) / total_signals, 2) * 100
 
+        # Generate human-readable reasoning text
+        reasoning_text = generate_fundamental_reasoning(
+            ticker=ticker,
+            overall_signal=overall_signal,
+            confidence=confidence,
+            reasoning=reasoning,
+            state=state
+        )
+        
         fundamental_analysis[ticker] = {
             "signal": overall_signal,
             "confidence": confidence,
-            "reasoning": reasoning,
+            "reasoning": reasoning_text,  # Use text instead of JSON
         }
 
-        progress.update_status(agent_id, ticker, "Done", analysis=json.dumps(reasoning, indent=4))
+        progress.update_status(agent_id, ticker, "Done", analysis=reasoning_text)
 
     # Create the fundamental analysis message
     message = HumanMessage(
@@ -164,3 +173,126 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
         "messages": [message],
         "data": data,
     }
+
+
+def generate_fundamental_reasoning(
+    ticker: str,
+    overall_signal: str,
+    confidence: float,
+    reasoning: dict,
+    state: AgentState,
+) -> str:
+    """
+    Generate human-readable reasoning text from fundamental analysis data.
+    
+    Args:
+        ticker: Stock ticker symbol
+        overall_signal: Overall signal (bullish/bearish/neutral)
+        confidence: Confidence level (0-100)
+        reasoning: Dictionary containing all fundamental analysis signals
+        state: Agent state for language settings
+    
+    Returns:
+        str: Human-readable reasoning text
+    """
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw"])
+    
+    if is_chinese:
+        # 中文描述
+        lines = [
+            f"【{ticker} 基本面分析摘要】",
+            f"综合信号: {overall_signal.upper()} (置信度: {confidence}%)",
+            "",
+            "各维度分析结果:",
+        ]
+        
+        # 盈利能力
+        if "profitability_signal" in reasoning:
+            prof = reasoning["profitability_signal"]
+            prof_sig = prof.get("signal", "neutral")
+            prof_details = prof.get("details", "")
+            lines.append(f"• 盈利能力: {prof_sig.upper()}")
+            if prof_details:
+                lines.append(f"  - {prof_details}")
+        
+        # 成长性
+        if "growth_signal" in reasoning:
+            growth = reasoning["growth_signal"]
+            growth_sig = growth.get("signal", "neutral")
+            growth_details = growth.get("details", "")
+            lines.append(f"• 成长性: {growth_sig.upper()}")
+            if growth_details:
+                lines.append(f"  - {growth_details}")
+        
+        # 财务健康
+        if "financial_health_signal" in reasoning:
+            health = reasoning["financial_health_signal"]
+            health_sig = health.get("signal", "neutral")
+            health_details = health.get("details", "")
+            lines.append(f"• 财务健康: {health_sig.upper()}")
+            if health_details:
+                lines.append(f"  - {health_details}")
+        
+        # 估值比率
+        if "price_ratios_signal" in reasoning:
+            ratios = reasoning["price_ratios_signal"]
+            ratios_sig = ratios.get("signal", "neutral")
+            ratios_details = ratios.get("details", "")
+            lines.append(f"• 估值比率: {ratios_sig.upper()}")
+            if ratios_details:
+                lines.append(f"  - {ratios_details}")
+        
+        lines.append("")
+        lines.append(f"结论: 基于多维度基本面分析，{ticker}当前呈现{overall_signal.upper()}信号，综合置信度为{confidence}%。")
+        
+        return "\n".join(lines)
+    else:
+        # English description
+        lines = [
+            f"【{ticker} Fundamental Analysis Summary】",
+            f"Combined Signal: {overall_signal.upper()} (Confidence: {confidence}%)",
+            "",
+            "Analysis by Dimension:",
+        ]
+        
+        # Profitability
+        if "profitability_signal" in reasoning:
+            prof = reasoning["profitability_signal"]
+            prof_sig = prof.get("signal", "neutral")
+            prof_details = prof.get("details", "")
+            lines.append(f"• Profitability: {prof_sig.upper()}")
+            if prof_details:
+                lines.append(f"  - {prof_details}")
+        
+        # Growth
+        if "growth_signal" in reasoning:
+            growth = reasoning["growth_signal"]
+            growth_sig = growth.get("signal", "neutral")
+            growth_details = growth.get("details", "")
+            lines.append(f"• Growth: {growth_sig.upper()}")
+            if growth_details:
+                lines.append(f"  - {growth_details}")
+        
+        # Financial Health
+        if "financial_health_signal" in reasoning:
+            health = reasoning["financial_health_signal"]
+            health_sig = health.get("signal", "neutral")
+            health_details = health.get("details", "")
+            lines.append(f"• Financial Health: {health_sig.upper()}")
+            if health_details:
+                lines.append(f"  - {health_details}")
+        
+        # Price Ratios
+        if "price_ratios_signal" in reasoning:
+            ratios = reasoning["price_ratios_signal"]
+            ratios_sig = ratios.get("signal", "neutral")
+            ratios_details = ratios.get("details", "")
+            lines.append(f"• Valuation Ratios: {ratios_sig.upper()}")
+            if ratios_details:
+                lines.append(f"  - {ratios_details}")
+        
+        lines.append("")
+        lines.append(f"Conclusion: Based on multi-dimensional fundamental analysis, {ticker} shows a {overall_signal.upper()} signal with {confidence}% confidence.")
+        
+        return "\n".join(lines)

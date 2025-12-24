@@ -290,7 +290,15 @@ def _query_with_hk_fallback(
         
         for function_name in function_names:
             try:
-                resp = client.query(function_name, security_code=symbol, **params)
+                # MARKET_HISTORICAL_QUOTES 使用 stock_code + market 参数，其他使用 security_code
+                query_params = params.copy()
+                if function_name == "MARKET_HISTORICAL_QUOTES":
+                    query_params["stock_code"] = symbol
+                    if not query_params.get("market"):
+                        query_params["market"] = "HK"  # 港股市场
+                    resp = client.query(function_name, **query_params)
+                else:
+                    resp = client.query(function_name, security_code=symbol, **params)
                 
                 # 确保 resp 是字典类型
                 if not isinstance(resp, dict):
@@ -436,11 +444,33 @@ def get_balance_sheet_raw(symbol: str, client: DeepAlphaClient | None = None) ->
                 print(f"  Response['data']['data'] type: {type(resp['data']['data'])}")
         raise RuntimeError(f"Unexpected BALANCE_SHEET response structure for {symbol}. Full response: {resp}") from exc
 
-    if not isinstance(inner_data, dict):
-        raise RuntimeError(f"BALANCE_SHEET 'data.data.data' should be a dict, got {type(inner_data)}")
-
-    # inner_data: Mapping[report_date -> fields]
-    return inner_data
+    # 港股可能返回列表格式，需要转换为字典格式
+    if isinstance(inner_data, list):
+        # 港股返回列表，需要转换为字典（按报告期索引）
+        result_dict = {}
+        for item in inner_data:
+            if isinstance(item, dict):
+                # 尝试从多个可能的字段名获取报告期
+                report_period = (
+                    item.get("report_period") or 
+                    item.get("report_date") or 
+                    item.get("reportdate") or
+                    item.get("period") or
+                    item.get("end_date") or
+                    item.get("enddate")
+                )
+                if report_period:
+                    result_dict[str(report_period)] = item
+                else:
+                    # 如果没有报告期字段，使用索引作为键
+                    result_dict[str(len(result_dict))] = item
+        return result_dict
+    elif isinstance(inner_data, dict):
+        # A股返回字典格式，直接返回
+        return inner_data
+    else:
+        print(f"Warning: BALANCE_SHEET 'data.data.data' is neither dict nor list, type: {type(inner_data)}")
+        return {}
 
 
 def balance_sheet_to_dataframe(balance_sheet: Mapping[str, Dict[str, Any]]) -> pd.DataFrame:
@@ -533,10 +563,33 @@ def get_income_statement_raw(symbol: str, client: DeepAlphaClient | None = None)
                 print(f"  Response['data']['data'] type: {type(resp['data']['data'])}")
         raise RuntimeError(f"Unexpected INCOME_STATEMENT response structure for {symbol}. Full response: {resp}") from exc
 
-    if not isinstance(inner_data, dict):
-        raise RuntimeError(f"INCOME_STATEMENT 'data.data.data' should be a dict, got {type(inner_data)}")
-
-    return inner_data
+    # 港股可能返回列表格式，需要转换为字典格式
+    if isinstance(inner_data, list):
+        # 港股返回列表，需要转换为字典（按报告期索引）
+        result_dict = {}
+        for item in inner_data:
+            if isinstance(item, dict):
+                # 尝试从多个可能的字段名获取报告期
+                report_period = (
+                    item.get("report_period") or 
+                    item.get("report_date") or 
+                    item.get("reportdate") or
+                    item.get("period") or
+                    item.get("end_date") or
+                    item.get("enddate")
+                )
+                if report_period:
+                    result_dict[str(report_period)] = item
+                else:
+                    # 如果没有报告期字段，使用索引作为键
+                    result_dict[str(len(result_dict))] = item
+        return result_dict
+    elif isinstance(inner_data, dict):
+        # A股返回字典格式，直接返回
+        return inner_data
+    else:
+        print(f"Warning: INCOME_STATEMENT 'data.data.data' is neither dict nor list, type: {type(inner_data)}")
+        return {}
 
 
 def get_cash_flow_raw(symbol: str, client: DeepAlphaClient | None = None) -> Mapping[str, Dict[str, Any]]:
@@ -581,10 +634,33 @@ def get_cash_flow_raw(symbol: str, client: DeepAlphaClient | None = None) -> Map
                 print(f"  Response['data']['data'] type: {type(resp['data']['data'])}")
         raise RuntimeError(f"Unexpected CASH_FLOW response structure for {symbol}. Full response: {resp}") from exc
 
-    if not isinstance(inner_data, dict):
-        raise RuntimeError(f"CASH_FLOW 'data.data.data' should be a dict, got {type(inner_data)}")
-
-    return inner_data
+    # 港股可能返回列表格式，需要转换为字典格式
+    if isinstance(inner_data, list):
+        # 港股返回列表，需要转换为字典（按报告期索引）
+        result_dict = {}
+        for item in inner_data:
+            if isinstance(item, dict):
+                # 尝试从多个可能的字段名获取报告期
+                report_period = (
+                    item.get("report_period") or 
+                    item.get("report_date") or 
+                    item.get("reportdate") or
+                    item.get("period") or
+                    item.get("end_date") or
+                    item.get("enddate")
+                )
+                if report_period:
+                    result_dict[str(report_period)] = item
+                else:
+                    # 如果没有报告期字段，使用索引作为键
+                    result_dict[str(len(result_dict))] = item
+        return result_dict
+    elif isinstance(inner_data, dict):
+        # A股返回字典格式，直接返回
+        return inner_data
+    else:
+        print(f"Warning: CASH_FLOW 'data.data.data' is neither dict nor list, type: {type(inner_data)}")
+        return {}
 
 
 def get_daily_price_raw(
@@ -803,12 +879,35 @@ def get_valuation_main_raw(symbol: str, client: DeepAlphaClient | None = None) -
         # A股失败则抛出异常
         raise
 
-    inner = resp.get("data", {}).get("data", {}).get("data", [])
+    # 确保 resp 是字典类型
+    if not isinstance(resp, dict):
+        print(f"ERROR: VALUATNANALYD response is not a dict, type: {type(resp)}")
+        return []
+    
+    try:
+        # 确保每一级都是字典类型
+        data_level1 = resp.get("data", {})
+        if not isinstance(data_level1, dict):
+            print(f"ERROR: resp['data'] is not a dict for VALUATNANALYD, type: {type(data_level1)}, value: {str(data_level1)[:200]}")
+            return []
+        
+        data_level2 = data_level1.get("data", {})
+        if not isinstance(data_level2, dict):
+            print(f"ERROR: resp['data']['data'] is not a dict for VALUATNANALYD, type: {type(data_level2)}, value: {str(data_level2)[:200]}")
+            return []
+        
+        inner = data_level2.get("data", [])
+    except (KeyError, TypeError, AttributeError) as e:
+        print(f"ERROR: Error extracting inner data from VALUATNANALYD response: {e}")
+        print(f"  Response structure: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
+        return []
+    
     if not isinstance(inner, list):
+        print(f"Warning: VALUATNANALYD inner data is not a list, type: {type(inner)}")
         return []
 
     # 按 trade_date 从大到小排序，最新的在前面
-    return sorted(inner, key=lambda x: x.get("trade_date", 0), reverse=True)
+    return sorted(inner, key=lambda x: x.get("trade_date", 0) if isinstance(x, dict) else 0, reverse=True)
 
 
 def get_latest_valuation(symbol: str, client: DeepAlphaClient | None = None) -> Dict[str, Any] | None:

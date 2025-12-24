@@ -204,12 +204,23 @@ def valuation_analyst_agent(state: AgentState, agent_id: str = "valuation_analys
                 "fcf_periods_analyzed": len(fcf_history)
             }
 
+        # Generate human-readable reasoning text
+        reasoning_text = generate_valuation_reasoning(
+            ticker=ticker,
+            signal=signal,
+            confidence=confidence,
+            reasoning=reasoning,
+            method_values=method_values,
+            market_cap=market_cap,
+            state=state
+        )
+        
         valuation_analysis[ticker] = {
             "signal": signal,
             "confidence": confidence,
-            "reasoning": reasoning,
+            "reasoning": reasoning_text,  # Use text instead of JSON
         }
-        progress.update_status(agent_id, ticker, "Done", analysis=json.dumps(reasoning, indent=4))
+        progress.update_status(agent_id, ticker, "Done", analysis=reasoning_text)
 
     # ---- Emit message (for LLM tool chain) ----
     msg = HumanMessage(content=json.dumps(valuation_analysis), name=agent_id)
@@ -496,3 +507,162 @@ def calculate_dcf_scenarios(
         'upside': results['bull'],
         'downside': results['bear']
     }
+
+
+def generate_valuation_reasoning(
+    ticker: str,
+    signal: str,
+    confidence: float,
+    reasoning: dict,
+    method_values: dict,
+    market_cap: float,
+    state: AgentState,
+) -> str:
+    """
+    Generate human-readable reasoning text from valuation analysis data.
+    
+    Args:
+        ticker: Stock ticker symbol
+        signal: Valuation signal (bullish/bearish/neutral)
+        confidence: Confidence level (0-100)
+        reasoning: Dictionary containing all valuation analysis signals
+        method_values: Dictionary containing valuation method results
+        market_cap: Current market capitalization
+        state: Agent state for language settings
+    
+    Returns:
+        str: Human-readable reasoning text
+    """
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw"])
+    
+    if is_chinese:
+        # 中文描述
+        lines = [
+            f"【{ticker} 估值分析摘要】",
+            f"综合信号: {signal.upper()} (置信度: {confidence}%)",
+            f"当前市值: ${market_cap:,.2f}",
+            "",
+            "各估值方法分析:",
+        ]
+        
+        # DCF分析
+        if "dcf_analysis" in reasoning:
+            dcf = reasoning["dcf_analysis"]
+            dcf_sig = dcf.get("signal", "neutral")
+            dcf_details = dcf.get("details", "")
+            dcf_val = method_values.get("dcf", {}).get("value", 0)
+            dcf_gap = method_values.get("dcf", {}).get("gap", 0)
+            lines.append(f"• DCF估值: {dcf_sig.upper()}")
+            if dcf_val > 0:
+                lines.append(f"  - 内在价值: ${dcf_val:,.2f}, 与市值差距: {dcf_gap:.1%}")
+            if "dcf_scenario_analysis" in reasoning:
+                scenario = reasoning["dcf_scenario_analysis"]
+                bear = scenario.get("bear_case", "N/A")
+                base = scenario.get("base_case", "N/A")
+                bull = scenario.get("bull_case", "N/A")
+                wacc = scenario.get("wacc_used", "N/A")
+                lines.append(f"  - 悲观: {bear}, 基准: {base}, 乐观: {bull}, WACC: {wacc}")
+        
+        # 所有者收益
+        if "owner_earnings_analysis" in reasoning:
+            owner = reasoning["owner_earnings_analysis"]
+            owner_sig = owner.get("signal", "neutral")
+            owner_details = owner.get("details", "")
+            owner_val = method_values.get("owner_earnings", {}).get("value", 0)
+            owner_gap = method_values.get("owner_earnings", {}).get("gap", 0)
+            lines.append(f"• 所有者收益估值: {owner_sig.upper()}")
+            if owner_val > 0:
+                lines.append(f"  - 内在价值: ${owner_val:,.2f}, 与市值差距: {owner_gap:.1%}")
+        
+        # EV/EBITDA
+        if "ev_ebitda_analysis" in reasoning:
+            ev = reasoning["ev_ebitda_analysis"]
+            ev_sig = ev.get("signal", "neutral")
+            ev_details = ev.get("details", "")
+            ev_val = method_values.get("ev_ebitda", {}).get("value", 0)
+            ev_gap = method_values.get("ev_ebitda", {}).get("gap", 0)
+            lines.append(f"• EV/EBITDA估值: {ev_sig.upper()}")
+            if ev_val > 0:
+                lines.append(f"  - 内在价值: ${ev_val:,.2f}, 与市值差距: {ev_gap:.1%}")
+        
+        # 剩余收益模型
+        if "residual_income_analysis" in reasoning:
+            rim = reasoning["residual_income_analysis"]
+            rim_sig = rim.get("signal", "neutral")
+            rim_details = rim.get("details", "")
+            rim_val = method_values.get("residual_income", {}).get("value", 0)
+            rim_gap = method_values.get("residual_income", {}).get("gap", 0)
+            lines.append(f"• 剩余收益模型: {rim_sig.upper()}")
+            if rim_val > 0:
+                lines.append(f"  - 内在价值: ${rim_val:,.2f}, 与市值差距: {rim_gap:.1%}")
+        
+        lines.append("")
+        lines.append(f"结论: 基于多方法估值分析，{ticker}当前市值与内在价值比较呈现{signal.upper()}信号，综合置信度为{confidence}%。")
+        
+        return "\n".join(lines)
+    else:
+        # English description
+        lines = [
+            f"【{ticker} Valuation Analysis Summary】",
+            f"Combined Signal: {signal.upper()} (Confidence: {confidence}%)",
+            f"Current Market Cap: ${market_cap:,.2f}",
+            "",
+            "Valuation Methods:",
+        ]
+        
+        # DCF Analysis
+        if "dcf_analysis" in reasoning:
+            dcf = reasoning["dcf_analysis"]
+            dcf_sig = dcf.get("signal", "neutral")
+            dcf_details = dcf.get("details", "")
+            dcf_val = method_values.get("dcf", {}).get("value", 0)
+            dcf_gap = method_values.get("dcf", {}).get("gap", 0)
+            lines.append(f"• DCF Valuation: {dcf_sig.upper()}")
+            if dcf_val > 0:
+                lines.append(f"  - Intrinsic Value: ${dcf_val:,.2f}, Gap vs Market Cap: {dcf_gap:.1%}")
+            if "dcf_scenario_analysis" in reasoning:
+                scenario = reasoning["dcf_scenario_analysis"]
+                bear = scenario.get("bear_case", "N/A")
+                base = scenario.get("base_case", "N/A")
+                bull = scenario.get("bull_case", "N/A")
+                wacc = scenario.get("wacc_used", "N/A")
+                lines.append(f"  - Bear: {bear}, Base: {base}, Bull: {bull}, WACC: {wacc}")
+        
+        # Owner Earnings
+        if "owner_earnings_analysis" in reasoning:
+            owner = reasoning["owner_earnings_analysis"]
+            owner_sig = owner.get("signal", "neutral")
+            owner_details = owner.get("details", "")
+            owner_val = method_values.get("owner_earnings", {}).get("value", 0)
+            owner_gap = method_values.get("owner_earnings", {}).get("gap", 0)
+            lines.append(f"• Owner Earnings: {owner_sig.upper()}")
+            if owner_val > 0:
+                lines.append(f"  - Intrinsic Value: ${owner_val:,.2f}, Gap vs Market Cap: {owner_gap:.1%}")
+        
+        # EV/EBITDA
+        if "ev_ebitda_analysis" in reasoning:
+            ev = reasoning["ev_ebitda_analysis"]
+            ev_sig = ev.get("signal", "neutral")
+            ev_details = ev.get("details", "")
+            ev_val = method_values.get("ev_ebitda", {}).get("value", 0)
+            ev_gap = method_values.get("ev_ebitda", {}).get("gap", 0)
+            lines.append(f"• EV/EBITDA: {ev_sig.upper()}")
+            if ev_val > 0:
+                lines.append(f"  - Intrinsic Value: ${ev_val:,.2f}, Gap vs Market Cap: {ev_gap:.1%}")
+        
+        # Residual Income Model
+        if "residual_income_analysis" in reasoning:
+            rim = reasoning["residual_income_analysis"]
+            rim_sig = rim.get("signal", "neutral")
+            rim_details = rim.get("details", "")
+            rim_val = method_values.get("residual_income", {}).get("value", 0)
+            rim_gap = method_values.get("residual_income", {}).get("gap", 0)
+            lines.append(f"• Residual Income Model: {rim_sig.upper()}")
+            if rim_val > 0:
+                lines.append(f"  - Intrinsic Value: ${rim_val:,.2f}, Gap vs Market Cap: {rim_gap:.1%}")
+        
+        lines.append("")
+        lines.append(f"Conclusion: Based on multi-method valuation analysis, {ticker} shows a {signal.upper()} signal with {confidence}% confidence when comparing market cap to intrinsic value.")
+        
+        return "\n".join(lines)

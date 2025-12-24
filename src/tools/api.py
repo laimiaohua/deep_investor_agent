@@ -28,6 +28,7 @@ from src.tools.deepalpha import (
     get_daily_price_raw,
     get_financial_indicators_raw,
     get_latest_valuation,
+    _is_hk_stock,
 )
 
 # Global cache instance
@@ -659,7 +660,7 @@ def get_cn_income_statement_line_items(
             currency = "CNY"
         # 确保常用字段存在（即使为 None，也保证属性存在）
         net_income = fields.get("net_income")
-        
+
         item_data: dict[str, any] = {
             "ticker": ticker,
             "report_period": str(report_period),
@@ -856,12 +857,47 @@ def get_cn_financial_metrics(
         print(f"Info: DeepAlpha returned no financial indicators for {ticker}")
         return []
 
+    # 调试：打印港股返回的所有字段（仅对港股）
+    if _looks_like_cn_or_hk_ticker(ticker) and _is_hk_stock(ticker):
+        print(f"Debug: 港股 {ticker} HKSTK_FINRPT_DER 财务指标字段:")
+        for report_period, fields in list(raw_indicators.items())[:1]:  # 只打印第一条
+            print(f"  报告期: {report_period}")
+            print(f"  所有字段（共 {len(fields)} 个）: {sorted(list(fields.keys()))}")
+            # 打印关键字段的值（港股实际字段名）
+            key_fields = [
+                "debtequ_rt", "current_rt", "operprof_tocl",  # 港股实际字段名
+                "roe", "roa", "roic",  # ROE/ROA/ROIC 可能字段名
+                "debtequityratio", "debt_to_equity", "operating_margin", 
+                "currentratio", "current_ratio", "流动比率", "营业利润率", "资产负债率"
+            ]
+            found_key_fields = {}
+            for key in key_fields:
+                if key in fields:
+                    found_key_fields[key] = fields[key]
+            if found_key_fields:
+                print(f"  找到的关键字段: {found_key_fields}")
+            else:
+                print(f"  未找到预期的关键字段")
+
     # 额外获取最新估值数据（VALUATNANALYD）
     latest_valuation: dict | None = None
     try:
         latest_valuation = get_latest_valuation(ticker, client=client)
+        if latest_valuation:
+            print(f"[DEBUG] 成功获取 VALUATNANALYD 估值数据（ticker={ticker}）:")
+            print(f"  估值数据字段: {list(latest_valuation.keys())[:30]}")  # 只打印前30个字段
+            # 特别检查关键估值字段
+            val_key_fields = ["totsec_mv", "pe_ttm", "pe_lyr", "pb", "ps_ttm", "ps", "dividrt_ttm", "dividrt_lyr", 
+                            "entpv_wth", "entpv_non", "market_cap", "pe", "pb_ratio", "ps_ratio"]
+            found_val_fields = {k: latest_valuation.get(k) for k in val_key_fields if k in latest_valuation}
+            if found_val_fields:
+                print(f"  找到的关键估值字段: {found_val_fields}")
+        else:
+            print(f"[DEBUG] VALUATNANALYD 返回空数据（ticker={ticker}）")
     except Exception as e:
         print(f"Warning: 获取 VALUATNANALYD 估值数据失败 ({ticker}): {e}")
+        import traceback
+        print(f"  详细错误: {traceback.format_exc()}")
 
     # Convert to FinancialMetrics objects
     metrics: list[FinancialMetrics] = []
@@ -869,16 +905,52 @@ def get_cn_financial_metrics(
         if not isinstance(fields, dict):
             continue
         
+        # 调试：打印第一个报告期的所有字段名（仅打印一次）
+        if not metrics and fields:
+            print(f"[DEBUG] DeepAlpha FINANALYSIS_MAIN 返回的字段名（ticker={ticker}, report_period={report_period}）:")
+            print(f"  所有字段: {list(fields.keys())[:50]}")  # 只打印前50个字段
+            # 特别检查关键字段（使用 DeepAlpha 实际返回的字段名）
+            key_fields = ["debt_to_equity", "d_e", "debt_equity", "debtequityratio",  # 债务权益比
+                         "operating_margin", "operating_profit_rate",  # 营业利润率
+                         "current_ratio", "currentratio", "流动比率",  # 流动比率
+                         "netprofitratio", "netprofitratiottm",  # 净利率
+                         "grossincomeratio", "grossincomeratiottm",  # 毛利率
+                         "roe", "roettm", "roa", "roattm", "roic", "roicttm"]  # ROE/ROA/ROIC
+            found_fields = {k: fields.get(k) for k in key_fields if k in fields}
+            if found_fields:
+                print(f"  找到的关键字段: {found_fields}")
+            else:
+                print(f"  未找到预期的关键字段，请检查字段映射")
+        
         # 如果有估值数据，则优先使用 VALUATNANALYD 中的字段
         valuation = latest_valuation or {}
-        val_market_cap = valuation.get("totsec_mv")
-        val_pe_ttm = valuation.get("pe_ttm")
-        val_pe_lyr = valuation.get("pe_lyr")
-        val_pb = valuation.get("pb")
-        val_ps_ttm = valuation.get("ps_ttm")
-        val_ps = valuation.get("ps")
-        val_div_yield = valuation.get("dividrt_ttm") or valuation.get("dividrt_lyr")
-        val_ev = valuation.get("entpv_wth") or valuation.get("entpv_non")
+        # 市值：可能的中文字段名或英文变体
+        val_market_cap = (valuation.get("totsec_mv") or valuation.get("market_cap") or 
+                         valuation.get("market_value") or valuation.get("总市值") or 
+                         valuation.get("total_market_value"))
+        # PE 比率：可能的中文字段名或英文变体
+        val_pe_ttm = (valuation.get("pe_ttm") or valuation.get("pe_ttm_ratio") or 
+                     valuation.get("市盈率TTM") or valuation.get("市盈率_ttm"))
+        val_pe_lyr = (valuation.get("pe_lyr") or valuation.get("pe_lyr_ratio") or 
+                     valuation.get("pe") or valuation.get("市盈率") or 
+                     valuation.get("市盈率LYR") or valuation.get("市盈率_lyr"))
+        # PB 比率：可能的中文字段名或英文变体
+        val_pb = (valuation.get("pb") or valuation.get("pb_ratio") or 
+                 valuation.get("市净率") or valuation.get("price_to_book"))
+        # PS 比率：可能的中文字段名或英文变体
+        val_ps_ttm = (valuation.get("ps_ttm") or valuation.get("ps_ttm_ratio") or 
+                     valuation.get("市销率TTM") or valuation.get("市销率_ttm"))
+        val_ps = (valuation.get("ps") or valuation.get("ps_ratio") or 
+                 valuation.get("市销率") or valuation.get("price_to_sales"))
+        # 股息率：可能的中文字段名或英文变体
+        val_div_yield = (valuation.get("dividrt_ttm") or valuation.get("dividrt_lyr") or 
+                        valuation.get("dividend_yield") or valuation.get("dividend_rate") or
+                        valuation.get("股息率") or valuation.get("dividend_yield_ttm") or
+                        valuation.get("dividend_yield_lyr"))
+        # 企业价值：可能的中文字段名或英文变体
+        val_ev = (valuation.get("entpv_wth") or valuation.get("entpv_non") or 
+                 valuation.get("enterprise_value") or valuation.get("ev") or
+                 valuation.get("企业价值"))
 
         # 辅助函数：将百分比字段从百分比形式转换为小数形式
         # DeepAlpha API 返回的百分比字段可能是百分比形式（如 15.5 表示 15.5%）
@@ -896,7 +968,7 @@ def get_cn_financial_metrics(
                 return num_value
             except (ValueError, TypeError):
                 return None
-        
+
         try:
             # 字段映射：DeepAlpha 的字段名可能和 FinancialMetrics 不完全一致，需要适配
             metric = FinancialMetrics(
@@ -916,24 +988,72 @@ def get_cn_financial_metrics(
                 free_cash_flow_yield=convert_percentage(fields.get("fcf_yield") or val_div_yield),
                 peg_ratio=fields.get("peg") or valuation.get("peg"),
                 # 百分比字段：需要转换为小数形式
-                gross_margin=convert_percentage(fields.get("gross_margin") or fields.get("gross_profit_rate")),
-                operating_margin=convert_percentage(fields.get("operating_margin") or fields.get("operating_profit_rate")),
-                net_margin=convert_percentage(fields.get("net_margin") or fields.get("net_profit_rate")),
-                return_on_equity=convert_percentage(fields.get("roe")),
-                return_on_assets=convert_percentage(fields.get("roa")),
-                return_on_invested_capital=convert_percentage(fields.get("roic")),
+                # 根据实际返回的字段名：grossincomeratio, netprofitratio, roe, roa, roic
+                gross_margin=convert_percentage(
+                    fields.get("gross_margin") or fields.get("gross_profit_rate") or 
+                    fields.get("毛利率") or fields.get("grossmargin") or
+                    fields.get("grossincomeratio") or fields.get("grossincomeratiottm")  # DeepAlpha 实际字段名
+                ),
+                operating_margin=convert_percentage(
+                    fields.get("operprof_tocl") or  # 港股 HKSTK_FINRPT_DER 实际字段名（营业利润率）
+                    fields.get("operating_margin") or fields.get("operating_profit_rate") or 
+                    fields.get("营业利润率") or fields.get("operatingmargin") or 
+                    fields.get("operating_profit_margin") or
+                    fields.get("operating_margin_ttm") or fields.get("operating_profit_margin_ttm") or
+                    fields.get("operating_profit_ratio") or fields.get("operating_profit_ratio_ttm")
+                    # 注意：DeepAlpha FINANALYSIS_MAIN 可能没有单独的 operating_margin 字段
+                    # 港股 HKSTK_FINRPT_DER 使用 operprof_tocl
+                ),
+                net_margin=convert_percentage(
+                    fields.get("net_margin") or fields.get("net_profit_rate") or 
+                    fields.get("净利率") or fields.get("netmargin") or 
+                    fields.get("net_profit_margin") or
+                    fields.get("netprofitratio") or fields.get("netprofitratiottm")  # DeepAlpha 实际字段名
+                ),
+                return_on_equity=convert_percentage(
+                    fields.get("roe") or fields.get("roettm") or fields.get("roeavg") or 
+                    fields.get("roeweighted") or  # DeepAlpha A股实际字段名
+                    fields.get("roe_ttm") or fields.get("roe_lyr") or  # 港股可能使用的字段名
+                    fields.get("return_on_equity") or fields.get("return_on_equity_ttm")
+                ),
+                return_on_assets=convert_percentage(
+                    fields.get("roa") or fields.get("roattm") or fields.get("roa_ebit") or 
+                    fields.get("roa_ebitttm")  # DeepAlpha 实际字段名
+                ),
+                return_on_invested_capital=convert_percentage(
+                    fields.get("roic") or fields.get("roicttm")  # DeepAlpha 实际字段名
+                ),
                 asset_turnover=fields.get("asset_turnover"),
                 inventory_turnover=fields.get("inventory_turnover"),
                 receivables_turnover=fields.get("receivables_turnover"),
                 days_sales_outstanding=fields.get("dso"),
                 operating_cycle=fields.get("operating_cycle"),
                 working_capital_turnover=fields.get("working_capital_turnover"),
-                current_ratio=fields.get("current_ratio"),
-                quick_ratio=fields.get("quick_ratio"),
-                cash_ratio=fields.get("cash_ratio"),
-                operating_cash_flow_ratio=fields.get("ocf_ratio"),
-                debt_to_equity=fields.get("debt_to_equity") or fields.get("d_e"),
-                debt_to_assets=fields.get("debt_to_assets") or fields.get("d_a"),
+                # 流动比率：可能的中文字段名或英文变体
+                # A股 FINANALYSIS_MAIN: currentratio, current_ratio
+                # 港股 HKSTK_FINRPT_DER: current_rt
+                current_ratio=(
+                    fields.get("current_rt") or  # 港股 HKSTK_FINRPT_DER 实际字段名
+                    fields.get("current_ratio") or fields.get("currentratio") or 
+                    fields.get("流动比率") or fields.get("current_ratio_ttm") or
+                    fields.get("current_ratio_lyr") or fields.get("currentratio_ttm")
+                ),
+                quick_ratio=fields.get("quick_ratio") or fields.get("quickratio") or fields.get("速动比率"),
+                cash_ratio=fields.get("cash_ratio") or fields.get("cashratio") or fields.get("现金比率"),
+                operating_cash_flow_ratio=fields.get("ocf_ratio") or fields.get("ocfratio") or fields.get("经营现金流比率"),
+                # 债务权益比：根据实际返回的字段名
+                # A股 FINANALYSIS_MAIN: debtequityratio
+                # 港股 HKSTK_FINRPT_DER: debtequ_rt
+                debt_to_equity=(
+                    fields.get("debtequ_rt") or  # 港股 HKSTK_FINRPT_DER 实际字段名
+                    fields.get("debt_to_equity") or fields.get("d_e") or 
+                    fields.get("debttoequity") or fields.get("资产负债率") or 
+                    fields.get("debt_equity_ratio") or fields.get("debt_equity") or
+                    fields.get("debtequityratio") or  # DeepAlpha A股实际字段名
+                    fields.get("d_e_ratio") or
+                    fields.get("debt_equity_ratio_ttm")
+                ),
+                debt_to_assets=fields.get("debt_to_assets") or fields.get("d_a") or fields.get("debttoassets") or fields.get("债务资产比") or fields.get("debt_assets_ratio"),
                 interest_coverage=fields.get("interest_coverage"),
                 # 增长率字段：也是百分比，需要转换
                 revenue_growth=convert_percentage(fields.get("revenue_growth")),

@@ -105,38 +105,48 @@ def technical_analyst_agent(state: AgentState, agent_id: str = "technical_analys
         )
 
         # Generate detailed analysis report for this ticker
+        reasoning_data = {
+            "trend_following": {
+                "signal": trend_signals["signal"],
+                "confidence": round(trend_signals["confidence"] * 100),
+                "metrics": normalize_pandas(trend_signals["metrics"]),
+            },
+            "mean_reversion": {
+                "signal": mean_reversion_signals["signal"],
+                "confidence": round(mean_reversion_signals["confidence"] * 100),
+                "metrics": normalize_pandas(mean_reversion_signals["metrics"]),
+            },
+            "momentum": {
+                "signal": momentum_signals["signal"],
+                "confidence": round(momentum_signals["confidence"] * 100),
+                "metrics": normalize_pandas(momentum_signals["metrics"]),
+            },
+            "volatility": {
+                "signal": volatility_signals["signal"],
+                "confidence": round(volatility_signals["confidence"] * 100),
+                "metrics": normalize_pandas(volatility_signals["metrics"]),
+            },
+            "statistical_arbitrage": {
+                "signal": stat_arb_signals["signal"],
+                "confidence": round(stat_arb_signals["confidence"] * 100),
+                "metrics": normalize_pandas(stat_arb_signals["metrics"]),
+            },
+        }
+        
+        # Generate human-readable reasoning text
+        reasoning_text = generate_technical_reasoning(
+            ticker=ticker,
+            combined_signal=combined_signal,
+            reasoning_data=reasoning_data,
+            state=state
+        )
+        
         technical_analysis[ticker] = {
             "signal": combined_signal["signal"],
             "confidence": round(combined_signal["confidence"] * 100),
-            "reasoning": {
-                "trend_following": {
-                    "signal": trend_signals["signal"],
-                    "confidence": round(trend_signals["confidence"] * 100),
-                    "metrics": normalize_pandas(trend_signals["metrics"]),
-                },
-                "mean_reversion": {
-                    "signal": mean_reversion_signals["signal"],
-                    "confidence": round(mean_reversion_signals["confidence"] * 100),
-                    "metrics": normalize_pandas(mean_reversion_signals["metrics"]),
-                },
-                "momentum": {
-                    "signal": momentum_signals["signal"],
-                    "confidence": round(momentum_signals["confidence"] * 100),
-                    "metrics": normalize_pandas(momentum_signals["metrics"]),
-                },
-                "volatility": {
-                    "signal": volatility_signals["signal"],
-                    "confidence": round(volatility_signals["confidence"] * 100),
-                    "metrics": normalize_pandas(volatility_signals["metrics"]),
-                },
-                "statistical_arbitrage": {
-                    "signal": stat_arb_signals["signal"],
-                    "confidence": round(stat_arb_signals["confidence"] * 100),
-                    "metrics": normalize_pandas(stat_arb_signals["metrics"]),
-                },
-            },
+            "reasoning": reasoning_text,  # Use text instead of JSON
         }
-        progress.update_status(agent_id, ticker, "Done", analysis=json.dumps(technical_analysis, indent=4))
+        progress.update_status(agent_id, ticker, "Done", analysis=reasoning_text)
 
     # Create the technical analyst message
     message = HumanMessage(
@@ -530,3 +540,170 @@ def calculate_hurst_exponent(price_series: pd.Series, max_lag: int = 20) -> floa
     except (ValueError, RuntimeWarning):
         # Return 0.5 (random walk) if calculation fails
         return 0.5
+
+
+def generate_technical_reasoning(
+    ticker: str,
+    combined_signal: dict,
+    reasoning_data: dict,
+    state: AgentState,
+) -> str:
+    """
+    Generate human-readable reasoning text from technical analysis data.
+    
+    Args:
+        ticker: Stock ticker symbol
+        combined_signal: Combined signal with signal and confidence
+        reasoning_data: Dictionary containing all technical analysis signals
+        state: Agent state for language settings
+    
+    Returns:
+        str: Human-readable reasoning text
+    """
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw"])
+    
+    signal = combined_signal["signal"]
+    confidence = round(combined_signal["confidence"] * 100)
+    
+    # Extract individual signals
+    trend = reasoning_data.get("trend_following", {})
+    mean_rev = reasoning_data.get("mean_reversion", {})
+    momentum = reasoning_data.get("momentum", {})
+    volatility = reasoning_data.get("volatility", {})
+    stat_arb = reasoning_data.get("statistical_arbitrage", {})
+    
+    if is_chinese:
+        # 中文描述
+        lines = [
+            f"【{ticker} 技术分析摘要】",
+            f"综合信号: {signal.upper()} (置信度: {confidence}%)",
+            "",
+            "各策略分析结果:",
+        ]
+        
+        # 趋势跟踪
+        if trend:
+            trend_sig = trend.get("signal", "neutral")
+            trend_conf = trend.get("confidence", 0)
+            trend_metrics = trend.get("metrics", {})
+            adx = trend_metrics.get("adx", 0)
+            lines.append(f"• 趋势跟踪: {trend_sig.upper()} (置信度: {trend_conf}%)")
+            if adx:
+                lines.append(f"  - ADX指标: {adx:.2f} ({'强趋势' if adx > 25 else '弱趋势' if adx < 20 else '中等趋势'})")
+        
+        # 均值回归
+        if mean_rev:
+            mean_sig = mean_rev.get("signal", "neutral")
+            mean_conf = mean_rev.get("confidence", 0)
+            mean_metrics = mean_rev.get("metrics", {})
+            z_score = mean_metrics.get("z_score", 0)
+            rsi_14 = mean_metrics.get("rsi_14", 0)
+            lines.append(f"• 均值回归: {mean_sig.upper()} (置信度: {mean_conf}%)")
+            if z_score:
+                lines.append(f"  - Z分数: {z_score:.2f} ({'超卖' if z_score < -2 else '超买' if z_score > 2 else '正常区间'})")
+            if rsi_14:
+                lines.append(f"  - RSI(14): {rsi_14:.2f} ({'超卖' if rsi_14 < 30 else '超买' if rsi_14 > 70 else '中性'})")
+        
+        # 动量
+        if momentum:
+            mom_sig = momentum.get("signal", "neutral")
+            mom_conf = momentum.get("confidence", 0)
+            mom_metrics = momentum.get("metrics", {})
+            mom_1m = mom_metrics.get("momentum_1m", 0)
+            lines.append(f"• 动量分析: {mom_sig.upper()} (置信度: {mom_conf}%)")
+            if mom_1m:
+                lines.append(f"  - 1月动量: {mom_1m:.2%} ({'看涨' if mom_1m > 0.05 else '看跌' if mom_1m < -0.05 else '中性'})")
+        
+        # 波动率
+        if volatility:
+            vol_sig = volatility.get("signal", "neutral")
+            vol_conf = volatility.get("confidence", 0)
+            vol_metrics = volatility.get("metrics", {})
+            hist_vol = vol_metrics.get("historical_volatility", 0)
+            vol_regime = vol_metrics.get("volatility_regime", 1.0)
+            lines.append(f"• 波动率分析: {vol_sig.upper()} (置信度: {vol_conf}%)")
+            if hist_vol:
+                lines.append(f"  - 历史波动率: {hist_vol:.2%} ({'高波动' if vol_regime > 1.2 else '低波动' if vol_regime < 0.8 else '正常波动'})")
+        
+        # 统计套利
+        if stat_arb:
+            arb_sig = stat_arb.get("signal", "neutral")
+            arb_conf = stat_arb.get("confidence", 0)
+            arb_metrics = stat_arb.get("metrics", {})
+            hurst = arb_metrics.get("hurst_exponent", 0.5)
+            lines.append(f"• 统计套利: {arb_sig.upper()} (置信度: {arb_conf}%)")
+            if hurst:
+                lines.append(f"  - Hurst指数: {hurst:.3f} ({'趋势性' if hurst > 0.5 else '均值回归' if hurst < 0.5 else '随机游走'})")
+        
+        lines.append("")
+        lines.append(f"结论: 基于多策略综合分析，{ticker}当前技术面呈现{signal.upper()}信号，综合置信度为{confidence}%。")
+        
+        return "\n".join(lines)
+    else:
+        # English description
+        lines = [
+            f"【{ticker} Technical Analysis Summary】",
+            f"Combined Signal: {signal.upper()} (Confidence: {confidence}%)",
+            "",
+            "Individual Strategy Results:",
+        ]
+        
+        # Trend Following
+        if trend:
+            trend_sig = trend.get("signal", "neutral")
+            trend_conf = trend.get("confidence", 0)
+            trend_metrics = trend.get("metrics", {})
+            adx = trend_metrics.get("adx", 0)
+            lines.append(f"• Trend Following: {trend_sig.upper()} (Confidence: {trend_conf}%)")
+            if adx:
+                lines.append(f"  - ADX: {adx:.2f} ({'Strong trend' if adx > 25 else 'Weak trend' if adx < 20 else 'Moderate trend'})")
+        
+        # Mean Reversion
+        if mean_rev:
+            mean_sig = mean_rev.get("signal", "neutral")
+            mean_conf = mean_rev.get("confidence", 0)
+            mean_metrics = mean_rev.get("metrics", {})
+            z_score = mean_metrics.get("z_score", 0)
+            rsi_14 = mean_metrics.get("rsi_14", 0)
+            lines.append(f"• Mean Reversion: {mean_sig.upper()} (Confidence: {mean_conf}%)")
+            if z_score:
+                lines.append(f"  - Z-Score: {z_score:.2f} ({'Oversold' if z_score < -2 else 'Overbought' if z_score > 2 else 'Normal range'})")
+            if rsi_14:
+                lines.append(f"  - RSI(14): {rsi_14:.2f} ({'Oversold' if rsi_14 < 30 else 'Overbought' if rsi_14 > 70 else 'Neutral'})")
+        
+        # Momentum
+        if momentum:
+            mom_sig = momentum.get("signal", "neutral")
+            mom_conf = momentum.get("confidence", 0)
+            mom_metrics = momentum.get("metrics", {})
+            mom_1m = mom_metrics.get("momentum_1m", 0)
+            lines.append(f"• Momentum: {mom_sig.upper()} (Confidence: {mom_conf}%)")
+            if mom_1m:
+                lines.append(f"  - 1M Momentum: {mom_1m:.2%} ({'Bullish' if mom_1m > 0.05 else 'Bearish' if mom_1m < -0.05 else 'Neutral'})")
+        
+        # Volatility
+        if volatility:
+            vol_sig = volatility.get("signal", "neutral")
+            vol_conf = volatility.get("confidence", 0)
+            vol_metrics = volatility.get("metrics", {})
+            hist_vol = vol_metrics.get("historical_volatility", 0)
+            vol_regime = vol_metrics.get("volatility_regime", 1.0)
+            lines.append(f"• Volatility: {vol_sig.upper()} (Confidence: {vol_conf}%)")
+            if hist_vol:
+                lines.append(f"  - Historical Volatility: {hist_vol:.2%} ({'High volatility' if vol_regime > 1.2 else 'Low volatility' if vol_regime < 0.8 else 'Normal volatility'})")
+        
+        # Statistical Arbitrage
+        if stat_arb:
+            arb_sig = stat_arb.get("signal", "neutral")
+            arb_conf = stat_arb.get("confidence", 0)
+            arb_metrics = stat_arb.get("metrics", {})
+            hurst = arb_metrics.get("hurst_exponent", 0.5)
+            lines.append(f"• Statistical Arbitrage: {arb_sig.upper()} (Confidence: {arb_conf}%)")
+            if hurst:
+                lines.append(f"  - Hurst Exponent: {hurst:.3f} ({'Trending' if hurst > 0.5 else 'Mean-reverting' if hurst < 0.5 else 'Random walk'})")
+        
+        lines.append("")
+        lines.append(f"Conclusion: Based on multi-strategy analysis, {ticker} shows a {signal.upper()} technical signal with {confidence}% confidence.")
+        
+        return "\n".join(lines)

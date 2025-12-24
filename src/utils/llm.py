@@ -337,9 +337,9 @@ def _call_llm_with_streaming(
             if not content:
                 continue
             
-            full_content += content
+                full_content += content
             # 通过 progress 发送流式更新（不输出日志）
-            progress.update_streaming_content(agent_name, ticker, content)
+                progress.update_streaming_content(agent_name, ticker, content)
         
         # 流式输出完成，解析完整内容
         if model_info and not model_info.has_json_mode():
