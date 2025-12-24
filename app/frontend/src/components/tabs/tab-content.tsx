@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { TabService } from '@/services/tab-service';
 import { FileText, FolderOpen } from 'lucide-react';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface TabContentProps {
   className?: string;
@@ -10,6 +11,7 @@ interface TabContentProps {
 
 export function TabContent({ className }: TabContentProps) {
   const { tabs, activeTabId, openTab } = useTabsContext();
+  const { t } = useTranslation();
 
   const activeTab = tabs.find(tab => tab.id === activeTabId);
 
@@ -24,11 +26,16 @@ export function TabContent({ className }: TabContentProps) {
           metadata: activeTab.metadata,
         });
         
+        // For settings tabs, always use the translated title
+        const finalTitle = restoredTab.type === 'settings' 
+          ? t('settings.title') 
+          : restoredTab.title;
+        
         // Update the tab with restored content
         openTab({
           id: activeTab.id,
           type: restoredTab.type,
-          title: restoredTab.title,
+          title: finalTitle,
           content: restoredTab.content,
           flow: restoredTab.flow,
           metadata: restoredTab.metadata,
@@ -37,7 +44,7 @@ export function TabContent({ className }: TabContentProps) {
         console.error('Failed to restore tab content:', error);
       }
     }
-  }, [activeTab, openTab]);
+  }, [activeTab, openTab, t]);
 
   if (!activeTab) {
     return (

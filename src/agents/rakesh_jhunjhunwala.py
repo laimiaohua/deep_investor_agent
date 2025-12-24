@@ -16,6 +16,7 @@ class RakeshJhunjhunwalaSignal(BaseModel):
 
 def rakesh_jhunjhunwala_agent(state: AgentState, agent_id: str = "rakesh_jhunjhunwala_agent"):
     """Analyzes stocks using Rakesh Jhunjhunwala's principles and LLM reasoning."""
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

@@ -18,6 +18,7 @@ class MohnishPabraiSignal(BaseModel):
 
 def mohnish_pabrai_agent(state: AgentState, agent_id: str = "mohnish_pabrai_agent"):
     """Evaluate stocks using Mohnish Pabrai's checklist and 'heads I win, tails I don't lose much' approach."""
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

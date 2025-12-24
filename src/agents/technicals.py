@@ -41,6 +41,7 @@ def technical_analyst_agent(state: AgentState, agent_id: str = "technical_analys
     4. Volatility Analysis
     5. Statistical Arbitrage Signals
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     start_date = data["start_date"]
     end_date = data["end_date"]

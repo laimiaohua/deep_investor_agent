@@ -10,6 +10,7 @@ from src.tools.api import get_financial_metrics
 ##### Fundamental Agent #####
 def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_analyst_agent"):
     """Analyzes fundamental data and generates trading signals for multiple tickers."""
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

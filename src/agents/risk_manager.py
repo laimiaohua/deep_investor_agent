@@ -10,6 +10,7 @@ from src.utils.api_key import get_api_key_from_state
 ##### Risk Management Agent #####
 def risk_management_agent(state: AgentState, agent_id: str = "risk_management_agent"):
     """Controls position sizing based on volatility-adjusted risk factors for multiple tickers."""
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     portfolio = state["data"]["portfolio"]
     data = state["data"]
     tickers = data["tickers"]

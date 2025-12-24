@@ -5,15 +5,19 @@ import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { getActionColor, getDisplayName, getSignalColor, getStatusIcon } from './output-tab-utils';
 import { ReasoningContent } from './reasoning-content';
+import { useTranslation } from 'react-i18next';
+import { translateNodeName, translateProgressMessage } from '@/utils/node-translations';
 
 // Progress Section Component
 function ProgressSection({ sortedAgents }: { sortedAgents: [string, any][] }) {
+  const { t } = useTranslation();
+  
   if (sortedAgents.length === 0) return null;
 
   return (
     <Card className="bg-transparent mb-4">
       <CardHeader>
-        <CardTitle className="text-lg">Progress</CardTitle>
+        <CardTitle className="text-lg">{t('nodes.output.progress')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-1">
@@ -24,12 +28,12 @@ function ProgressSection({ sortedAgents }: { sortedAgents: [string, any][] }) {
             return (
               <div key={agentId} className="flex items-center gap-2">
                 <StatusIcon className={cn("h-4 w-4 flex-shrink-0", color)} />
-                <span className="font-medium">{displayName}</span>
+                <span className="font-medium">{translateNodeName(displayName)}</span>
                 {data.ticker && (
                   <span>[{data.ticker}]</span>
                 )}
                 <span className={cn("flex-1", color)}>
-                  {data.message || data.status}
+                  {translateProgressMessage(data.message || data.status)}
                 </span>
                 {data.timestamp && (
                   <span className="text-muted-foreground text-xs">
@@ -47,21 +51,23 @@ function ProgressSection({ sortedAgents }: { sortedAgents: [string, any][] }) {
 
 // Summary Section Component
 function SummarySection({ outputData }: { outputData: any }) {
+  const { t } = useTranslation();
+  
   if (!outputData) return null;
 
   return (
     <Card className="bg-transparent mb-4">
       <CardHeader>
-        <CardTitle className="text-lg">Summary</CardTitle>
+        <CardTitle className="text-lg">{t('nodes.output.summary')}</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Ticker</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Confidence</TableHead>
+              <TableHead>{t('nodes.output.ticker')}</TableHead>
+              <TableHead>{t('nodes.output.action')}</TableHead>
+              <TableHead>{t('nodes.output.quantity')}</TableHead>
+              <TableHead>{t('nodes.output.confidence')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -86,6 +92,7 @@ function SummarySection({ outputData }: { outputData: any }) {
 
 // Analysis Results Section Component
 function AnalysisResultsSection({ outputData }: { outputData: any }) {
+  const { t } = useTranslation();
   // Always call hooks at the top of the function
   const [selectedTicker, setSelectedTicker] = useState<string>('');
   
@@ -106,7 +113,7 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
   return (
     <Card className="bg-transparent">
       <CardHeader>
-        <CardTitle className="text-lg">Analysis</CardTitle>
+        <CardTitle className="text-lg">{t('nodes.output.analysis')}</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs value={selectedTicker} onValueChange={setSelectedTicker} className="w-full">
@@ -131,10 +138,10 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Agent</TableHead>
-                      <TableHead>Signal</TableHead>
-                      <TableHead>Confidence</TableHead>
-                      <TableHead>Reasoning</TableHead>
+                      <TableHead>{t('nodes.output.agent')}</TableHead>
+                      <TableHead>{t('nodes.output.signal')}</TableHead>
+                      <TableHead>{t('nodes.output.confidence')}</TableHead>
+                      <TableHead>{t('nodes.output.reasoning')}</TableHead>
                     </TableRow>
                   </TableHeader>
                                      <TableBody>
@@ -151,7 +158,7 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
                         return (
                           <TableRow key={agent}>
                             <TableCell className="font-medium">
-                              {getDisplayName(agent)}
+                              {translateNodeName(getDisplayName(agent))}
                             </TableCell>
                             <TableCell>
                               <span className={cn("font-medium", signalColor)}>
@@ -172,13 +179,13 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Property</TableHead>
-                      <TableHead>Value</TableHead>
+                      <TableHead>{t('nodes.output.property')}</TableHead>
+                      <TableHead>{t('nodes.output.value')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell className="font-medium">Action</TableCell>
+                      <TableCell className="font-medium">{t('nodes.output.action')}</TableCell>
                       <TableCell>
                         <span className={cn("font-medium", getActionColor(decision.action || ''))}>
                           {decision.action?.toUpperCase() || 'UNKNOWN'}
@@ -186,16 +193,16 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell className="font-medium">Quantity</TableCell>
+                      <TableCell className="font-medium">{t('nodes.output.quantity')}</TableCell>
                       <TableCell>{decision.quantity || 0}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell className="font-medium">Confidence</TableCell>
+                      <TableCell className="font-medium">{t('nodes.output.confidence')}</TableCell>
                       <TableCell>{decision.confidence?.toFixed(1) || 0}%</TableCell>
                     </TableRow>
                     {decision.reasoning && (
                       <TableRow>
-                        <TableCell className="font-medium">Reasoning</TableCell>
+                        <TableCell className="font-medium">{t('nodes.output.reasoning')}</TableCell>
                         <TableCell className="max-w-md">
                           <ReasoningContent content={decision.reasoning} />
                         </TableCell>

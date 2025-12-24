@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { apiKeysService } from '@/services/api-keys-api';
 import { Eye, EyeOff, Key, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ApiKey {
   key: string;
@@ -17,9 +18,16 @@ const FINANCIAL_API_KEYS: ApiKey[] = [
   {
     key: 'FINANCIAL_DATASETS_API_KEY',
     label: 'Financial Datasets API',
-    description: 'For getting financial data to power the hedge fund',
+    description: 'For getting US stock market financial data',
     url: 'https://financialdatasets.ai/',
     placeholder: 'your-financial-datasets-api-key'
+  },
+  {
+    key: 'DEEPALPHA_API_KEY',
+    label: 'DeepAlpha API',
+    description: 'For getting A-share and Hong Kong stock market data',
+    url: 'https://deepalpha.gravitechinnovations.com/',
+    placeholder: 'your-deepalpha-api-key'
   }
 ];
 
@@ -80,6 +88,7 @@ export function ApiKeysSettings() {
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   // Load API keys from backend on component mount
   useEffect(() => {
@@ -224,15 +233,15 @@ export function ApiKeysSettings() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold text-primary mb-2">API Keys</h2>
+          <h2 className="text-xl font-semibold text-primary mb-2">{t('settings.apiKeys.title')}</h2>
           <p className="text-sm text-muted-foreground">
-            Loading API keys...
+            {t('common.loading')}...
           </p>
         </div>
         <Card className="bg-panel border-gray-700 dark:border-gray-700">
           <CardContent className="p-6">
             <div className="text-sm text-muted-foreground">
-              Please wait while we load your API keys...
+              {t('common.loading')}...
             </div>
           </CardContent>
         </Card>
@@ -243,10 +252,9 @@ export function ApiKeysSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-primary mb-2">API Keys</h2>
+        <h2 className="text-xl font-semibold text-primary mb-2">{t('settings.apiKeys.title')}</h2>
         <p className="text-sm text-muted-foreground">
-          Configure API endpoints and authentication credentials for financial data and language models.
-          Changes are automatically saved.
+          {t('settings.apiKeys.description')}
         </p>
       </div>
 
@@ -257,7 +265,7 @@ export function ApiKeysSettings() {
             <div className="flex items-start gap-3">
               <Key className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
               <div className="space-y-1">
-                <h4 className="text-sm font-medium text-red-500">Error</h4>
+                <h4 className="text-sm font-medium text-red-500">{t('common.error')}</h4>
                 <p className="text-xs text-muted-foreground">{error}</p>
                 <Button
                   variant="ghost"
@@ -268,7 +276,7 @@ export function ApiKeysSettings() {
                   }}
                   className="text-xs mt-2 p-0 h-auto text-red-500 hover:text-red-400"
                 >
-                  Try again
+                  {t('common.tryAgain')}
                 </Button>
               </div>
             </div>
@@ -278,16 +286,16 @@ export function ApiKeysSettings() {
 
       {/* Financial Data API Keys */}
       {renderApiKeySection(
-        'Financial Data',
-        'API keys for accessing financial market data and datasets.',
+        t('settings.apiKeys.financialData'),
+        t('settings.apiKeys.financialDataDesc'),
         FINANCIAL_API_KEYS,
         <Key className="h-4 w-4" />
       )}
 
       {/* LLM API Keys */}
       {renderApiKeySection(
-        'Language Models',
-        'API keys for accessing various large language model providers.',
+        t('settings.apiKeys.languageModels'),
+        t('settings.apiKeys.languageModelsDesc'),
         LLM_API_KEYS,
         <Key className="h-4 w-4" />
       )}
@@ -298,10 +306,9 @@ export function ApiKeysSettings() {
           <div className="flex items-start gap-3">
             <Key className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
             <div className="space-y-1">
-              <h4 className="text-sm font-medium text-amber-500">Security Note</h4>
+              <h4 className="text-sm font-medium text-amber-500">{t('settings.apiKeys.securityNote')}</h4>
               <p className="text-xs text-muted-foreground">
-                API keys are stored securely on your local system and changes are automatically saved. 
-                Keep your API keys secure and don't share them with others.
+                {t('settings.apiKeys.securityNoteDesc')}
               </p>
             </div>
           </div>

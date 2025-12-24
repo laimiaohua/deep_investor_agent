@@ -18,6 +18,7 @@ class WarrenBuffettSignal(BaseModel):
 
 def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agent"):
     """Analyzes stocks using Buffett's principles and LLM reasoning."""
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]
@@ -27,116 +28,154 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
     buffett_analysis = {}
 
     for ticker in tickers:
-        progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        # Fetch required data - request more periods for better trend analysis
-        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=10, api_key=api_key)
+        try:
+            progress.update_status(agent_id, ticker, "Fetching financial metrics")
+            # Fetch required data - request more periods for better trend analysis
+            try:
+                metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=10, api_key=api_key)
+            except Exception as e:
+                error_msg = str(e)
+                progress.update_status(agent_id, ticker, f"Failed: {error_msg[:50]}")
+                print(f"Warning: Failed to fetch financial metrics for {ticker}: {error_msg}")
+                # Skip this ticker and continue with others
+                buffett_analysis[ticker] = {
+                    "signal": "neutral",
+                    "confidence": 0,
+                    "reasoning": f"无法获取 {ticker} 的财务数据: {error_msg}。请检查 API 配置和网络连接。"
+                }
+                continue
 
-        progress.update_status(agent_id, ticker, "Gathering financial line items")
-        financial_line_items = search_line_items(
-            ticker,
-            [
-                "capital_expenditure",
-                "depreciation_and_amortization",
-                "net_income",
-                "outstanding_shares",
-                "total_assets",
-                "total_liabilities",
-                "shareholders_equity",
-                "dividends_and_other_cash_distributions",
-                "issuance_or_purchase_of_equity_shares",
-                "gross_profit",
-                "revenue",
-                "free_cash_flow",
-            ],
-            end_date,
-            period="ttm",
-            limit=10,
-            api_key=api_key,
-        )
+            progress.update_status(agent_id, ticker, "Gathering financial line items")
+            try:
+                financial_line_items = search_line_items(
+                    ticker,
+                    [
+                        "capital_expenditure",
+                        "depreciation_and_amortization",
+                        "net_income",
+                        "outstanding_shares",
+                        "total_assets",
+                        "total_liabilities",
+                        "shareholders_equity",
+                        "dividends_and_other_cash_distributions",
+                        "issuance_or_purchase_of_equity_shares",
+                        "gross_profit",
+                        "revenue",
+                        "free_cash_flow",
+                    ],
+                    end_date,
+                    period="ttm",
+                    limit=10,
+                    api_key=api_key,
+                )
+            except Exception as e:
+                error_msg = str(e)
+                progress.update_status(agent_id, ticker, f"Failed: {error_msg[:50]}")
+                print(f"Warning: Failed to fetch financial line items for {ticker}: {error_msg}")
+                # Use empty list as fallback
+                financial_line_items = []
 
-        progress.update_status(agent_id, ticker, "Getting market cap")
-        # Get current market cap
-        market_cap = get_market_cap(ticker, end_date, api_key=api_key)
+            progress.update_status(agent_id, ticker, "Getting market cap")
+            # Get current market cap
+            try:
+                market_cap = get_market_cap(ticker, end_date, api_key=api_key)
+            except Exception as e:
+                error_msg = str(e)
+                print(f"Warning: Failed to fetch market cap for {ticker}: {error_msg}")
+                # Use None as fallback
+                market_cap = None
 
-        progress.update_status(agent_id, ticker, "Analyzing fundamentals")
-        # Analyze fundamentals
-        fundamental_analysis = analyze_fundamentals(metrics)
+            progress.update_status(agent_id, ticker, "Analyzing fundamentals")
+            # Analyze fundamentals
+            fundamental_analysis = analyze_fundamentals(metrics)
 
-        progress.update_status(agent_id, ticker, "Analyzing consistency")
-        consistency_analysis = analyze_consistency(financial_line_items)
+            progress.update_status(agent_id, ticker, "Analyzing consistency")
+            consistency_analysis = analyze_consistency(financial_line_items)
 
-        progress.update_status(agent_id, ticker, "Analyzing competitive moat")
-        moat_analysis = analyze_moat(metrics)
+            progress.update_status(agent_id, ticker, "Analyzing competitive moat")
+            moat_analysis = analyze_moat(metrics)
 
-        progress.update_status(agent_id, ticker, "Analyzing pricing power")
-        pricing_power_analysis = analyze_pricing_power(financial_line_items, metrics)
+            progress.update_status(agent_id, ticker, "Analyzing pricing power")
+            pricing_power_analysis = analyze_pricing_power(financial_line_items, metrics)
 
-        progress.update_status(agent_id, ticker, "Analyzing book value growth")
-        book_value_analysis = analyze_book_value_growth(financial_line_items)
+            progress.update_status(agent_id, ticker, "Analyzing book value growth")
+            book_value_analysis = analyze_book_value_growth(financial_line_items)
 
-        progress.update_status(agent_id, ticker, "Analyzing management quality")
-        mgmt_analysis = analyze_management_quality(financial_line_items)
+            progress.update_status(agent_id, ticker, "Analyzing management quality")
+            mgmt_analysis = analyze_management_quality(financial_line_items)
 
-        progress.update_status(agent_id, ticker, "Calculating intrinsic value")
-        intrinsic_value_analysis = calculate_intrinsic_value(financial_line_items)
+            progress.update_status(agent_id, ticker, "Calculating intrinsic value")
+            intrinsic_value_analysis = calculate_intrinsic_value(financial_line_items)
 
-        # Calculate total score without circle of competence (LLM will handle that)
-        total_score = (
-                fundamental_analysis["score"] +
-                consistency_analysis["score"] +
-                moat_analysis["score"] +
-                mgmt_analysis["score"] +
-                pricing_power_analysis["score"] +
-                book_value_analysis["score"]
-        )
+            # Calculate total score without circle of competence (LLM will handle that)
+            total_score = (
+                    fundamental_analysis["score"] +
+                    consistency_analysis["score"] +
+                    moat_analysis["score"] +
+                    mgmt_analysis["score"] +
+                    pricing_power_analysis["score"] +
+                    book_value_analysis["score"]
+            )
 
-        # Update max possible score calculation
-        max_possible_score = (
-                10 +  # fundamental_analysis (ROE, debt, margins, current ratio)
-                moat_analysis["max_score"] +
-                mgmt_analysis["max_score"] +
-                5 +  # pricing_power (0-5)
-                5  # book_value_growth (0-5)
-        )
+            # Update max possible score calculation
+            max_possible_score = (
+                    10 +  # fundamental_analysis (ROE, debt, margins, current ratio)
+                    moat_analysis["max_score"] +
+                    mgmt_analysis["max_score"] +
+                    5 +  # pricing_power (0-5)
+                    5  # book_value_growth (0-5)
+            )
 
-        # Add margin of safety analysis if we have both intrinsic value and current price
-        margin_of_safety = None
-        intrinsic_value = intrinsic_value_analysis["intrinsic_value"]
-        if intrinsic_value and market_cap:
-            margin_of_safety = (intrinsic_value - market_cap) / market_cap
+            # Add margin of safety analysis if we have both intrinsic value and current price
+            margin_of_safety = None
+            intrinsic_value = intrinsic_value_analysis["intrinsic_value"]
+            if intrinsic_value and market_cap:
+                margin_of_safety = (intrinsic_value - market_cap) / market_cap
 
-        # Combine all analysis results for LLM evaluation
-        analysis_data[ticker] = {
-            "ticker": ticker,
-            "score": total_score,
-            "max_score": max_possible_score,
-            "fundamental_analysis": fundamental_analysis,
-            "consistency_analysis": consistency_analysis,
-            "moat_analysis": moat_analysis,
-            "pricing_power_analysis": pricing_power_analysis,
-            "book_value_analysis": book_value_analysis,
-            "management_analysis": mgmt_analysis,
-            "intrinsic_value_analysis": intrinsic_value_analysis,
-            "market_cap": market_cap,
-            "margin_of_safety": margin_of_safety,
-        }
+            # Combine all analysis results for LLM evaluation
+            analysis_data[ticker] = {
+                "ticker": ticker,
+                "score": total_score,
+                "max_score": max_possible_score,
+                "fundamental_analysis": fundamental_analysis,
+                "consistency_analysis": consistency_analysis,
+                "moat_analysis": moat_analysis,
+                "pricing_power_analysis": pricing_power_analysis,
+                "book_value_analysis": book_value_analysis,
+                "management_analysis": mgmt_analysis,
+                "intrinsic_value_analysis": intrinsic_value_analysis,
+                "market_cap": market_cap,
+                "margin_of_safety": margin_of_safety,
+            }
 
-        progress.update_status(agent_id, ticker, "Generating Warren Buffett analysis")
-        buffett_output = generate_buffett_output(
-            ticker=ticker,
-            analysis_data=analysis_data[ticker],
-            state=state,
-            agent_id=agent_id,
-        )
+            progress.update_status(agent_id, ticker, "Generating Warren Buffett analysis")
+            buffett_output = generate_buffett_output(
+                ticker=ticker,
+                analysis_data=analysis_data[ticker],
+                state=state,
+                agent_id=agent_id,
+                enable_streaming=True,  # Enable streaming for real-time progress
+            )
 
-        # Store analysis in consistent format with other agents
-        buffett_analysis[ticker] = {
-            "signal": buffett_output.signal,
-            "confidence": buffett_output.confidence,
-            "reasoning": buffett_output.reasoning,
-        }
+            # Store analysis in consistent format with other agents
+            buffett_analysis[ticker] = {
+                "signal": buffett_output.signal,
+                "confidence": buffett_output.confidence,
+                "reasoning": buffett_output.reasoning,
+            }
 
-        progress.update_status(agent_id, ticker, "Done", analysis=buffett_output.reasoning)
+            progress.update_status(agent_id, ticker, "Done", analysis=buffett_output.reasoning)
+        
+        except Exception as e:
+            # Catch any unexpected errors and continue with other tickers
+            error_msg = str(e)
+            progress.update_status(agent_id, ticker, f"Error: {error_msg[:50]}")
+            print(f"Error analyzing {ticker}: {error_msg}")
+            buffett_analysis[ticker] = {
+                "signal": "neutral",
+                "confidence": 0,
+                "reasoning": f"分析 {ticker} 时发生错误: {error_msg}。请检查数据源和配置。"
+            }
 
     # Create the message
     message = HumanMessage(content=json.dumps(buffett_analysis), name=agent_id)
@@ -748,6 +787,7 @@ def generate_buffett_output(
         analysis_data: dict[str, any],
         state: AgentState,
         agent_id: str = "warren_buffett_agent",
+        enable_streaming: bool = False,
 ) -> WarrenBuffettSignal:
     """Get investment decision from LLM with a compact prompt."""
 
@@ -792,7 +832,14 @@ def generate_buffett_output(
                 "- 30-49%: Outside my expertise or concerning fundamentals\n"
                 "- 10-29%: Poor business or significantly overvalued\n"
                 "\n"
-                "Keep reasoning under 120 characters. Do not invent data. Return JSON only."
+                "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
+                "1. Business quality assessment: moat, competitive advantages, management quality\n"
+                "2. Financial metrics: ROE, margins, debt levels, cash generation\n"
+                "3. Valuation analysis: intrinsic value estimate, margin of safety\n"
+                "4. Circle of competence: whether this business is within your expertise\n"
+                "5. Risk factors: what could go wrong\n"
+                "6. Conclusion: clear investment recommendation with rationale\n"
+                "Do not invent data. Return JSON only."
             ),
             (
                 "human",
@@ -823,4 +870,6 @@ def generate_buffett_output(
         agent_name=agent_id,
         state=state,
         default_factory=create_default_warren_buffett_signal,
+        enable_streaming=enable_streaming,
+        ticker=ticker,
     )

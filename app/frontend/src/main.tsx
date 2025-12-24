@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { NodeProvider } from './contexts/node-context';
 import { ThemeProvider } from './providers/theme-provider';
+import './i18n/config';
 
 import './index.css';
 

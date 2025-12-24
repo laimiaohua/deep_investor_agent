@@ -33,6 +33,7 @@ def phil_fisher_agent(state: AgentState, agent_id: str = "phil_fisher_agent"):
 
     Returns a bullish/bearish/neutral signal with confidence and reasoning.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

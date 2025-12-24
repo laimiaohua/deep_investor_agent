@@ -52,7 +52,7 @@ export const api = {
    * @param data The JSON data to save
    * @returns Promise that resolves when the file is saved
    */
-  saveJsonFile: async (filename: string, data: any): Promise<void> => {
+  saveJsonFile: async (filename: string, data: unknown): Promise<void> => {
     try {
       const response = await fetch(`${API_BASE_URL}/storage/save-json`, {
         method: 'POST',
@@ -130,11 +130,13 @@ export const api = {
       
       // Function to process the stream
       const processStream = async () => {
+        let doneReading = false;
         try {
-          while (true) {
+          while (!doneReading) {
             const { done, value } = await reader.read();
             
             if (done) {
+              doneReading = true;
               break;
             }
             
@@ -166,22 +168,30 @@ export const api = {
                       // Reset all nodes at the start of a new run
                       nodeContext.resetAllNodes(flowId);
                       break;
+                    
+                    case 'llm_stream':
+                      // 关闭流式输出：忽略 llm_stream 事件
+                      break;
+                    
                     case 'progress':
                       if (eventData.agent) {
-                        // Map the progress to a node status
+                        // Map the backend agent name to the unique node ID
+                        const baseAgentKey = eventData.agent.replace('_agent', '');
+                        const uniqueNodeId = getAgentIds().find(id => 
+                          extractBaseAgentKey(id) === baseAgentKey
+                        ) || baseAgentKey;
+
+                        // Streaming模式已关闭，直接忽略 streaming 事件
+                        if (eventData.status === 'streaming') {
+                          break;
+                        }
+
+                        // Regular progress message
                         let nodeStatus: NodeStatus = 'IN_PROGRESS';
                         if (eventData.status === 'Done') {
                           nodeStatus = 'COMPLETE';
                         }
-                        // Map the backend agent name to the unique node ID
-                        const baseAgentKey = eventData.agent.replace('_agent', '');
                         
-                        // Find the unique node ID that corresponds to this base agent key
-                        const uniqueNodeId = getAgentIds().find(id => 
-                          extractBaseAgentKey(id) === baseAgentKey
-                        ) || baseAgentKey;
-                                                
-                        // Use the enhanced API to update both status and additional data
                         nodeContext.updateAgentNode(flowId, uniqueNodeId, {
                           status: nodeStatus,
                           ticker: eventData.ticker,
@@ -256,8 +266,9 @@ export const api = {
               });
             }
           }
-        } catch (error: any) { // Type assertion for error
-          if (error.name !== 'AbortError') {
+        } catch (error: unknown) {
+          const err = error as { name?: string; message?: string };
+          if (err?.name !== 'AbortError') {
             console.error('Error reading SSE stream:', error);
             // Mark all agents as error when there's a connection error
             nodeContext.updateAgentNodes(flowId, getAgentIds(), 'ERROR');
@@ -266,7 +277,7 @@ export const api = {
             if (flowId) {
               flowConnectionManager.setConnection(flowId, {
                 state: 'error',
-                error: error.message || 'Connection error',
+                error: err?.message || 'Connection error',
                 abortController: null,
               });
             }
@@ -277,8 +288,9 @@ export const api = {
       // Start processing the stream
       processStream();
     })
-    .catch((error: any) => { // Type assertion for error
-      if (error.name !== 'AbortError') {
+    .catch((error: unknown) => {
+      const err = error as { name?: string; message?: string };
+      if (err?.name !== 'AbortError') {
         console.error('SSE connection error:', error);
         // Mark all agents as error when there's a connection error
         nodeContext.updateAgentNodes(flowId, getAgentIds(), 'ERROR');
@@ -287,7 +299,7 @@ export const api = {
         if (flowId) {
           flowConnectionManager.setConnection(flowId, {
             state: 'error',
-            error: error.message || 'Connection failed',
+            error: err?.message || 'Connection failed',
             abortController: null,
           });
         }

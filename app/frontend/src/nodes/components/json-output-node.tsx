@@ -1,6 +1,8 @@
 import { type NodeProps } from '@xyflow/react';
 import { FileJson } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { translateNodeStatus } from '@/utils/node-translations';
 
 import { CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,6 +21,7 @@ export function JsonOutputNode({
   id,
   isConnectable,
 }: NodeProps<JsonOutputNode>) {  
+  const { t } = useTranslation();
   const { currentFlowId } = useFlowContext();
   const { getOutputNodeDataForFlow } = useNodeContext();
   
@@ -82,7 +85,7 @@ export function JsonOutputNode({
           <div className="border-t border-border p-3">
             <div className="flex flex-col gap-2">
               <div className="text-subtitle text-muted-foreground flex items-center gap-1">
-                Results
+                {t('nodes.output.results')}
               </div>
               
               <OutputNodeStatus
@@ -91,6 +94,10 @@ export function JsonOutputNode({
                 isOutputAvailable={isOutputAvailable}
                 isConnected={isConnected}
                 onViewOutput={handleViewOutput}
+                processingText={t('nodes.output.inProgress')}
+                completingText={t('nodes.output.completing')}
+                availableText={t('nodes.output.viewOutput')}
+                idleText={t('nodes.statusIdle')}
               />
               
               <div className="flex items-center space-x-2 mt-2">
@@ -103,7 +110,7 @@ export function JsonOutputNode({
                   htmlFor="save-to-file"
                   className="text-subtitle text-muted-foreground cursor-pointer"
                 >
-                  Save to File
+                  {t('nodes.output.saveToFile')}
                 </label>
               </div>
             </div>

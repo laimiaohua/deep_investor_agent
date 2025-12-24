@@ -24,6 +24,7 @@ def cathie_wood_agent(state: AgentState, agent_id: str = "cathie_wood_agent"):
     3. Invests mostly in AI, robotics, genomic sequencing, fintech, and blockchain.
     4. Willing to endure short-term volatility for long-term gains.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

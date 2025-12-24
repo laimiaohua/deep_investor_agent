@@ -11,6 +11,7 @@ from src.tools.api import get_insider_trades, get_company_news
 ##### Sentiment Agent #####
 def sentiment_analyst_agent(state: AgentState, agent_id: str = "sentiment_analyst_agent"):
     """Analyzes market sentiment and generates trading signals for multiple tickers."""
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state.get("data", {})
     end_date = data.get("end_date")
     tickers = data.get("tickers")

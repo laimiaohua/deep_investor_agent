@@ -1,6 +1,8 @@
 import { type NodeProps } from '@xyflow/react';
 import { Brain } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { translateNodeStatus } from '@/utils/node-translations';
 
 import { Button } from '@/components/ui/button';
 import { CardContent } from '@/components/ui/card';
@@ -22,6 +24,7 @@ export function PortfolioManagerNode({
   id,
   isConnectable,
 }: NodeProps<PortfolioManagerNode>) {
+  const { t } = useTranslation();
   const { currentFlowId } = useFlowContext();
   const { getAgentNodeDataForFlow, setAgentModel, getAgentModel, getOutputNodeDataForFlow } = useNodeContext();
 
@@ -109,7 +112,7 @@ export function PortfolioManagerNode({
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <div className="text-subtitle text-primary flex items-center gap-1">
-                  Status
+                  {t('nodes.status')}
                 </div>
 
                 <div
@@ -118,9 +121,7 @@ export function PortfolioManagerNode({
                     isInProgress ? 'gradient-animation' : getStatusColor(status)
                   )}
                 >
-                  <span className="capitalize">
-                    {status.toLowerCase().replace(/_/g, ' ')}
-                  </span>
+                  <span>{translateNodeStatus(status)}</span>
                 </div>
               </div>
               <div className='flex flex-col gap-2'>
@@ -129,19 +130,19 @@ export function PortfolioManagerNode({
                     size="sm"
                     onClick={() => setIsDialogOpen(true)}
                   >
-                    View Investment Report
+                    {t('nodes.portfolioManager.viewInvestmentReport')}
                   </Button>
                 )}
               </div>
               <div className="flex flex-col gap-2">
                 <div className="text-subtitle text-primary flex items-center gap-1">
-                  Model
+                  {t('nodes.model')}
                 </div>
                 <ModelSelector
                   models={availableModels}
                   value={selectedModel?.model_name || ''}
                   onChange={handleModelChange}
-                  placeholder="Auto"
+                  placeholder={t('nodes.auto')}
                 />
               </div>
             </div>

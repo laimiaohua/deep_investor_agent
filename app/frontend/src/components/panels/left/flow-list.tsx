@@ -4,6 +4,7 @@ import { Accordion } from '@/components/ui/accordion';
 import { useTabsContext } from '@/contexts/tabs-context';
 import { Flow } from '@/types/flow';
 import { FolderOpen } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface FlowListProps {
   flows: Flow[];
@@ -50,18 +51,19 @@ export function FlowList({
   };
 
   const activeFlowId = getActiveFlowId();
+  const { t } = useTranslation();
 
   return (
     <div className="flex-grow overflow-auto text-primary scrollbar-thin scrollbar-thumb-ramp-grey-700">
       <SearchBox 
         value={searchQuery} 
         onChange={onSearchChange}
-        placeholder="Search flows..."
+        placeholder={t('sidebar.left.searchPlaceholder')}
       />
       
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
-          <div className="text-muted-foreground text-sm">Loading flows...</div>
+          <div className="text-muted-foreground text-sm">{t('sidebar.left.loading')}</div>
         </div>
       ) : (
         <Accordion 
@@ -73,7 +75,7 @@ export function FlowList({
           {recentFlows.length > 0 && (
             <FlowItemGroup
               key="recent-flows"
-              title="Recent Flows"
+              title={t('sidebar.left.recentFlows')}
               flows={recentFlows}
               onLoadFlow={onLoadFlow}
               onDeleteFlow={onDeleteFlow}
@@ -85,7 +87,7 @@ export function FlowList({
           {templateFlows.length > 0 && (
             <FlowItemGroup
               key="templates"
-              title="Templates"
+              title={t('sidebar.left.templates')}
               flows={templateFlows}
               onLoadFlow={onLoadFlow}
               onDeleteFlow={onDeleteFlow}
@@ -101,11 +103,11 @@ export function FlowList({
           {flows.length === 0 ? (
             <div className="space-y-2">
               <FolderOpen size={32} className="mx-auto text-muted-foreground" />
-              <div>No flows saved yet</div>
-              <div className="text-xs">Create your first flow to get started</div>
+              <div>{t('sidebar.left.noFlows')}</div>
+              <div className="text-xs">{t('sidebar.left.noFlowsHint')}</div>
             </div>
           ) : (
-            'No flows match your search'
+            t('sidebar.left.noMatch')
           )}
         </div>
       )}

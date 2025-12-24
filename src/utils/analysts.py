@@ -19,6 +19,11 @@ from src.agents.rakesh_jhunjhunwala import rakesh_jhunjhunwala_agent
 from src.agents.mohnish_pabrai import mohnish_pabrai_agent
 from src.agents.news_sentiment import news_sentiment_agent
 from src.agents.growth_agent import growth_analyst_agent
+from src.agents.duan_yongping import duan_yongping_agent
+from src.agents.zhang_lei import zhang_lei_agent
+from src.agents.qiu_guolu import qiu_guolu_agent
+from src.agents.feng_liu import feng_liu_agent
+from src.agents.dan_bin import dan_bin_agent
 
 # Define analyst configuration - single source of truth
 ANALYST_CONFIG = {
@@ -165,6 +170,46 @@ ANALYST_CONFIG = {
         "agent_func": valuation_analyst_agent,
         "type": "analyst",
         "order": 16,
+    },
+    "duan_yongping": {
+        "display_name": "Duan Yongping",
+        "description": "Chinese Long-term Value Investor",
+        "investing_style": "Focuses on high-quality consumer and internet companies, emphasizing simple business models, stable cash flows, and reliable management. Prefers to hold fewer but excellent companies for the long term.",
+        "agent_func": duan_yongping_agent,
+        "type": "analyst",
+        "order": 17,
+    },
+    "zhang_lei": {
+        "display_name": "Zhang Lei",
+        "description": "Long-term Compounding Investor",
+        "investing_style": "Known as 'friend of time', emphasizes good companies + good price + long time. Prefers companies with global vision and compounding capabilities.",
+        "agent_func": zhang_lei_agent,
+        "type": "analyst",
+        "order": 18,
+    },
+    "qiu_guolu": {
+        "display_name": "Qiu Guolu",
+        "description": "Top-down & Bottom-up Cycle Investor",
+        "investing_style": "Combines macro and industry cycle analysis, building positions during pessimism and reducing during optimism. Values valuation safety margin and risk-reward ratio.",
+        "agent_func": qiu_guolu_agent,
+        "type": "analyst",
+        "order": 19,
+    },
+    "feng_liu": {
+        "display_name": "Feng Liu",
+        "description": "Contrarian & Patient Long-term Investor",
+        "investing_style": "Builds positions gradually during extreme sentiment and market misunderstandings. Focuses on expectation gaps and intrinsic improvements, willing to endure volatility for the long term.",
+        "agent_func": feng_liu_agent,
+        "type": "analyst",
+        "order": 20,
+    },
+    "dan_bin": {
+        "display_name": "Dan Bin",
+        "description": "Value Investor Favoring Consumer & Blue-chip Leaders",
+        "investing_style": "Emphasizes being 'friends of time' with excellent companies. Prefers brand consumer, healthcare, and blue-chip leaders with long-term growth potential.",
+        "agent_func": dan_bin_agent,
+        "type": "analyst",
+        "order": 21,
     },
 }
 

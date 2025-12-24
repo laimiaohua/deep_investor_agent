@@ -1,6 +1,8 @@
 import { type NodeProps } from '@xyflow/react';
 import { Bot } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { translateNodeStatus, translateProgressMessage } from '@/utils/node-translations';
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { CardContent } from '@/components/ui/card';
@@ -21,6 +23,7 @@ export function AgentNode({
   id,
   isConnectable,
 }: NodeProps<AgentNode>) {
+  const { t } = useTranslation();
   const { currentFlowId } = useFlowContext();
   const { getAgentNodeDataForFlow, setAgentModel, getAgentModel } = useNodeContext();
   
@@ -88,44 +91,53 @@ export function AgentNode({
         <div className="border-t border-border p-3">
           <div className="flex flex-col gap-2">
             <div className="text-subtitle text-primary flex items-center gap-1">
-              Status
+              {t('nodes.status')}
             </div>
 
             <div className={cn(
               "text-foreground text-xs rounded p-2 border border-status",
               isInProgress ? "gradient-animation" : getStatusColor(status)
             )}>
-              <span className="capitalize">{status.toLowerCase().replace(/_/g, ' ')}</span>
+              <span>{translateNodeStatus(status)}</span>
             </div>
             
             {nodeData.message && (
               <div className="text-foreground text-subtitle">
-                {nodeData.message !== "Done" && nodeData.message}
+                {nodeData.message !== "Done" && translateProgressMessage(nodeData.message)}
                 {nodeData.ticker && <span className="ml-1">({nodeData.ticker})</span>}
+              </div>
+            )}
+            
+            {/* Display streaming content if available */}
+            {(nodeData as any).streamingContent && (
+              <div className="text-foreground text-xs mt-2 p-2 bg-muted/30 rounded border border-border max-h-32 overflow-y-auto">
+                <div className="whitespace-pre-wrap">
+                  {(nodeData as any).streamingContent}
+                </div>
               </div>
             )}
             <Accordion type="single" collapsible>
               <AccordionItem value="advanced" className="border-none">
                 <AccordionTrigger className="!text-subtitle text-primary">
-                  Advanced
+                  {t('nodes.advanced')}
                 </AccordionTrigger>
                 <AccordionContent className="pt-2">
                   <div className="flex flex-col gap-2">
                     <div className="text-subtitle text-primary flex items-center gap-1">
-                      Model
+                      {t('nodes.model')}
                     </div>
                     <ModelSelector
                       models={availableModels}
                       value={selectedModel?.model_name || ""}
                       onChange={handleModelChange}
-                      placeholder="Auto"
+                      placeholder={t('nodes.auto')}
                     />
                     {selectedModel && (
                       <button
                         onClick={handleUseGlobalModel}
                         className="text-subtitle text-primary hover:text-foreground transition-colors text-left"
                       >
-                        Reset to Auto
+                        {t('nodes.resetToAuto')}
                       </button>
                     )}
                   </div>

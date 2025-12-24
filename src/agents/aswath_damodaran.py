@@ -33,6 +33,7 @@ def aswath_damodaran_agent(state: AgentState, agent_id: str = "aswath_damodaran_
       • Cross-check with relative valuation (PE vs. Fwd PE sector median proxy)
     Produces a trading signal and explanation in Damodaran's analytical voice.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data      = state["data"]
     end_date  = data["end_date"]
     tickers   = data["tickers"]

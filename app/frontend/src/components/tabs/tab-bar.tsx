@@ -3,6 +3,7 @@ import { useTabsContext } from '@/contexts/tabs-context';
 import { cn } from '@/lib/utils';
 import { FileText, Layout, Settings, X } from 'lucide-react';
 import { ReactNode, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface TabBarProps {
   className?: string;
@@ -24,6 +25,7 @@ export function TabBar({ className }: TabBarProps) {
   const { tabs, activeTabId, setActiveTab, closeTab, reorderTabs } = useTabsContext();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const { t } = useTranslation();
 
   if (tabs.length === 0) {
     return null;
@@ -155,7 +157,7 @@ export function TabBar({ className }: TabBarProps) {
                 closeTab(tab.id);
               }}
               onMouseDown={(e) => e.stopPropagation()} // Prevent drag when clicking close button
-              title="Close tab"
+              title={t('tabs.closeTab')}
             >
               <X size={11} className="transition-transform duration-150 hover:scale-110" />
             </Button>

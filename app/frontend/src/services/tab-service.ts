@@ -36,11 +36,12 @@ export class TabService {
     };
   }
 
-  static createSettingsTab(): TabData & { content: ReactNode } {
+  static createSettingsTab(title?: string): TabData & { content: ReactNode } {
+    const tabTitle = title || 'Settings';
     return {
       type: 'settings',
-      title: 'Settings',
-      content: TabService.createTabContent({ type: 'settings', title: 'Settings' }),
+      title: tabTitle,
+      content: TabService.createTabContent({ type: 'settings', title: tabTitle }),
     };
   }
 

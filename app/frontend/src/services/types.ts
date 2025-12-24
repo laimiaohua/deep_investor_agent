@@ -4,6 +4,7 @@ export enum ModelProvider {
   ANTHROPIC = 'Anthropic',
   GROQ = 'Groq',
   OLLAMA = 'Ollama',
+  DEEPSEEK = 'DeepSeek',
 }
 
 export interface AgentModelConfig {
@@ -43,6 +44,10 @@ export interface BaseHedgeFundRequest {
   model_provider?: ModelProvider;
   margin_requirement?: number;
   portfolio_positions?: PortfolioPosition[];
+  // Language for LLM output (e.g., "zh-CN", "zh-TW", "en")
+  language?: string;
+  // Custom prompt for more detailed reasoning
+  reasoning_detail?: string;
 }
 
 export interface HedgeFundRequest extends BaseHedgeFundRequest {

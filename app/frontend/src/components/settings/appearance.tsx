@@ -3,27 +3,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useTranslation } from 'react-i18next';
 
 export function ThemeSettings() {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
 
   const themes = [
     {
       id: 'light',
-      name: 'Light',
-      description: 'A clean, bright interface',
+      name: t('settings.theme.light.name'),
+      description: t('settings.theme.light.description'),
       icon: Sun,
     },
     {
       id: 'dark',
-      name: 'Dark',
-      description: 'A comfortable dark interface',
+      name: t('settings.theme.dark.name'),
+      description: t('settings.theme.dark.description'),
       icon: Moon,
     },
     {
       id: 'system',
-      name: 'System',
-      description: 'Use your system preference',
+      name: t('settings.theme.system.name'),
+      description: t('settings.theme.system.description'),
       icon: Monitor,
     },
   ];
@@ -31,21 +33,21 @@ export function ThemeSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-primary mb-2">Theme</h2>
+        <h2 className="text-xl font-semibold text-primary mb-2">{t('settings.theme.title')}</h2>
         <p className="text-sm text-muted-foreground">
-          Customize the look and feel of your application.
+          {t('settings.theme.subtitle')}
         </p>
       </div>
 
       <Card className="bg-panel border-gray-700 dark:border-gray-700">
         <CardHeader>
           <CardTitle className="text-lg font-medium text-primary">
-            Theme
+            {t('settings.theme.cardTitle')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Select your preferred theme or use system setting to automatically switch between light and dark modes.
+            {t('settings.theme.cardDescription')}
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

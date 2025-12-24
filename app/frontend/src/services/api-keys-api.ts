@@ -42,13 +42,20 @@ export interface ApiKeyBulkUpdateRequest {
 class ApiKeysService {
   private baseUrl = `${API_BASE_URL}/api-keys`;
 
+  /**
+   * FastAPI 对于缺少结尾斜杠的集合路由会 307 重定向，这里统一补上斜杠，避免前端误报失败。
+   */
+  private collectionUrl() {
+    return this.baseUrl.endsWith('/') ? this.baseUrl : `${this.baseUrl}/`;
+  }
+
   async getAllApiKeys(includeInactive = false): Promise<ApiKeySummary[]> {
     const params = new URLSearchParams();
     if (includeInactive) {
       params.append('include_inactive', 'true');
     }
     
-    const response = await fetch(`${this.baseUrl}?${params}`);
+    const response = await fetch(`${this.collectionUrl()}?${params}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch API keys: ${response.statusText}`);
     }
@@ -67,7 +74,7 @@ class ApiKeysService {
   }
 
   async createOrUpdateApiKey(request: ApiKeyCreateRequest): Promise<ApiKey> {
-    const response = await fetch(this.baseUrl, {
+    const response = await fetch(this.collectionUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

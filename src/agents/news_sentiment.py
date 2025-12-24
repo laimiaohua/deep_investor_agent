@@ -37,6 +37,7 @@ def news_sentiment_agent(state: AgentState, agent_id: str = "news_sentiment_agen
     Returns:
         A dictionary containing the updated state with the agent's analysis.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state.get("data", {})
     end_date = data.get("end_date")
     tickers = data.get("tickers")

@@ -21,6 +21,7 @@ from src.tools.api import (
 def valuation_analyst_agent(state: AgentState, agent_id: str = "valuation_analyst_agent"):
     """Run valuation across tickers and write signals back to `state`."""
 
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

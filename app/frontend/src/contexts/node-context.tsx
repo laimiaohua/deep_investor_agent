@@ -21,6 +21,7 @@ export interface AgentNodeData {
   timestamp?: string;
   analysis: string | null;
   backtestResults?: any[];
+  streamingContent?: string;  // For LLM streaming output
 }
 
 // Data structure for the output node data (from complete event)

@@ -18,9 +18,22 @@ app = FastAPI(title="AI Hedge Fund API", description="Backend API for AI Hedge F
 Base.metadata.create_all(bind=engine)
 
 # Configure CORS
+# 从环境变量读取允许的源，支持开发和生产环境
+import os
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+# 添加生产环境域名（如果设置了环境变量）
+if os.getenv("ALLOWED_ORIGINS"):
+    allowed_origins.extend(os.getenv("ALLOWED_ORIGINS").split(","))
+else:
+    # 默认添加生产域名
+    allowed_origins.append("https://deepinvestoragent.gravitechinnovations.com")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Frontend URLs
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,6 +41,11 @@ app.add_middleware(
 
 # Include all routes
 app.include_router(api_router)
+
+# Dedicated health check (防止路由导入异常时 /health 不可用)
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "AI Hedge Fund API"}
 
 @app.on_event("startup")
 async def startup_event():

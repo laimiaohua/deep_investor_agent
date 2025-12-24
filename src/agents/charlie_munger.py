@@ -20,6 +20,7 @@ def charlie_munger_agent(state: AgentState, agent_id: str = "charlie_munger_agen
     Analyzes stocks using Charlie Munger's investing principles and mental models.
     Focuses on moat strength, management quality, predictability, and valuation.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]
@@ -823,9 +824,15 @@ def generate_munger_output(
     facts_bundle = make_munger_facts_bundle(analysis_data)
     template = ChatPromptTemplate.from_messages([
         ("system",
-         "You are Charlie Munger. Decide bullish, bearish, or neutral using only the facts. "
-         "Return JSON only. Keep reasoning under 120 characters. "
-         "Use the provided confidence exactly; do not change it."),
+         "You are Charlie Munger. Decide bullish, bearish, or neutral using only the facts.\n"
+         "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
+         "1. Mental models applied: which frameworks you're using to analyze this business\n"
+         "2. Business quality: moat, competitive position, management quality\n"
+         "3. Financial analysis: key metrics, trends, and red flags\n"
+         "4. Valuation perspective: whether the price makes sense\n"
+         "5. Inversion thinking: what could go wrong, what are the risks\n"
+         "6. Conclusion: clear investment recommendation with rationale\n"
+         "Return JSON only. Use the provided confidence exactly; do not change it."),
         ("human",
          "Ticker: {ticker}\n"
          "Facts:\n{facts}\n"

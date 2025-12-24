@@ -2,6 +2,7 @@ import { Card, CardHeader } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Handle, Position } from '@xyflow/react';
 import { ReactNode } from 'react';
+import { translateNodeName, translateNodeDescription } from '@/utils/node-translations';
 
 export interface NodeShellProps {
   id: string;
@@ -66,12 +67,12 @@ export function NodeShell({
               {icon}
             </div>
             <div className="text-title font-semibold text-primary">
-              {name || "Custom Component"}
+              {translateNodeName(name) || "Custom Component"}
             </div>
           </CardHeader>
           {description && (
             <div className="px-3 py-2 text-subtitle text-primary text-left">
-              {description}
+              {translateNodeDescription(description, name)}
             </div>
           )}
           {children}

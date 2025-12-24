@@ -22,6 +22,7 @@ def bill_ackman_agent(state: AgentState, agent_id: str = "bill_ackman_agent"):
     Fetches multiple periods of data for a more robust long-term view.
     Incorporates brand/competitive advantage, activism potential, and other key factors.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

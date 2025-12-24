@@ -1,8 +1,21 @@
 import { useReactFlow, type NodeProps } from '@xyflow/react';
 import { ChevronDown, PieChart, Play, Plus, Square, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n/config';
 
 import { Button } from '@/components/ui/button';
+
+// Helper function to convert i18n language code to LLM-friendly language name
+function getLanguageForLLM(): string {
+  const lang = i18n.language;
+  if (lang.startsWith('zh-CN') || lang === 'zh') {
+    return 'Simplified Chinese';
+  } else if (lang.startsWith('zh-TW') || lang.startsWith('zh-HK')) {
+    return 'Traditional Chinese';
+  }
+  return 'English';
+}
 import { CardContent } from '@/components/ui/card';
 import {
   Command,
@@ -34,10 +47,7 @@ interface PortfolioPosition {
   tradePrice: string;
 }
 
-const runModes = [
-  { value: 'single', label: 'Single Run' },
-  { value: 'backtest', label: 'Backtest' },
-];
+// runModes will be created inside component to use i18n
 
 export function PortfolioStartNode({
   data,
@@ -45,10 +55,17 @@ export function PortfolioStartNode({
   id,
   isConnectable,
 }: NodeProps<PortfolioStartNode>) {
+  const { t } = useTranslation();
+  
   // Calculate default dates
   const today = new Date();
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(today.getMonth() - 3);
+  
+  const runModes = [
+    { value: 'single', label: t('nodes.portfolioInput.singleRun') },
+    { value: 'backtest', label: t('nodes.portfolioInput.backtest') },
+  ];
   
   // Use persistent state hooks
   const [positions, setPositions] = useNodeState<PortfolioPosition[]>(id, 'positions', [
@@ -229,6 +246,8 @@ export function PortfolioStartNode({
         model_provider: undefined,
         // Pass portfolio positions to backend
         portfolio_positions: portfolioPositions,
+        // Pass language for LLM output
+        language: getLanguageForLLM(),
       });
     } else {
       // Use the regular hedge fund API for single run
@@ -251,6 +270,8 @@ export function PortfolioStartNode({
         initial_cash: parseFloat(initialCash) || 100000,
         // Pass portfolio positions to backend
         portfolio_positions: portfolioPositions,
+        // Pass language for LLM output
+        language: getLanguageForLLM(),
       });
     }
   };
@@ -275,7 +296,7 @@ export function PortfolioStartNode({
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <div className="text-subtitle text-primary flex items-center gap-1">
-                  Available Cash
+                  {t('nodes.portfolioInput.availableCash')}
                 </div>
                 <div className="relative flex-1">
                   <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none">
@@ -296,10 +317,10 @@ export function PortfolioStartNode({
                 <div className="text-subtitle text-primary flex items-center gap-1">
                   <Tooltip delayDuration={200}>
                     <TooltipTrigger asChild>
-                      <span>Positions</span>
+                      <span>{t('nodes.portfolioInput.positions')}</span>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      Add your portfolio positions with ticker, quantity, and trade price
+                      {t('nodes.portfolioInput.positionsTooltip')}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -308,14 +329,14 @@ export function PortfolioStartNode({
                     return (
                     <div key={index} className="flex gap-2 items-center">
                       <Input
-                        placeholder="Ticker"
+                        placeholder={t('nodes.portfolioInput.ticker')}
                         value={position.ticker}
                         onChange={(e) => handlePositionChange(index, 'ticker', e.target.value)}
                         className="flex-1"
                       />
                       <Input
                         type="number"
-                        placeholder="Quantity"
+                        placeholder={t('nodes.portfolioInput.quantity')}
                         value={position.quantity}
                         onChange={(e) => handlePositionChange(index, 'quantity', e.target.value)}
                         className="w-20"
@@ -327,7 +348,7 @@ export function PortfolioStartNode({
                         </div>
                         <Input
                           type="number"
-                          placeholder="Price"
+                          placeholder={t('nodes.portfolioInput.price')}
                           value={position.tradePrice}
                           onChange={(e) => handlePositionChange(index, 'tradePrice', e.target.value)}
                           className="pl-8"
@@ -355,13 +376,13 @@ export function PortfolioStartNode({
                     variant="secondary"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Position
+                    {t('nodes.portfolioInput.addPosition')}
                   </Button>
                 </div>
               </div>
               <div className="flex flex-col gap-2">
                 <div className="text-subtitle text-primary flex items-center gap-1">
-                  Run
+                  {t('nodes.portfolioInput.run')}
                 </div>
                 <div className="flex gap-2">
                   <Popover open={open} onOpenChange={setOpen}>

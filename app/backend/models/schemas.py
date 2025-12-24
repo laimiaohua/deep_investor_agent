@@ -68,13 +68,17 @@ class BaseHedgeFundRequest(BaseModel):
     margin_requirement: float = 0.0
     portfolio_positions: Optional[List[PortfolioPosition]] = None
     api_keys: Optional[Dict[str, str]] = None
+    language: Optional[str] = None
+    reasoning_detail: Optional[str] = None
 
     def get_agent_ids(self) -> List[str]:
         """Extract agent IDs from graph structure"""
         return [node.id for node in self.graph_nodes]
 
     def get_agent_model_config(self, agent_id: str) -> tuple[str, ModelProvider]:
-        """Get model configuration for a specific agent"""
+        """Get model configuration for a specific agent with intelligent fallback"""
+        import os
+        
         if self.agent_models:
             # Extract base agent key from unique node ID for matching
             base_agent_key = extract_base_agent_key(agent_id)
@@ -83,12 +87,75 @@ class BaseHedgeFundRequest(BaseModel):
                 # Check both unique node ID and base agent key for matches
                 config_base_key = extract_base_agent_key(config.agent_id)
                 if config.agent_id == agent_id or config_base_key == base_agent_key:
-                    return (
-                        config.model_name or self.model_name,
-                        config.model_provider or self.model_provider
-                    )
+                    model_name = config.model_name or self.model_name
+                    model_provider = config.model_provider or self.model_provider
+                    
+                    # Check if the configured provider actually has a VALID API key
+                    if model_provider == ModelProvider.OPENAI:
+                        openai_key = (self.api_keys and self.api_keys.get("OPENAI_API_KEY")) or os.getenv("OPENAI_API_KEY")
+                        # Use helper to check if key is valid
+                        if not openai_key or not self._is_valid_key(openai_key):
+                            # OpenAI configured but no valid key - switch to available provider
+                            print(f"[Schema] OpenAI key is placeholder or missing, switching to available provider")
+                            model_name, model_provider = self._get_available_provider()
+                    
+                    return model_name, model_provider
+        
         # Fallback to global model settings
-        return self.model_name, self.model_provider
+        model_name = self.model_name
+        model_provider = self.model_provider
+        
+        # Check if the global provider has a VALID API key
+        if model_provider == ModelProvider.OPENAI:
+            openai_key = (self.api_keys and self.api_keys.get("OPENAI_API_KEY")) or os.getenv("OPENAI_API_KEY")
+            if not openai_key or not self._is_valid_key(openai_key):
+                # OpenAI configured but no valid key - switch to available provider
+                print(f"[Schema] Global OpenAI key is placeholder or missing, switching to available provider")
+                model_name, model_provider = self._get_available_provider()
+        
+        return model_name, model_provider
+    
+    def _is_valid_key(self, key: str) -> bool:
+        """Check if an API key is valid (not a placeholder)"""
+        if not key:
+            return False
+        # Common placeholder patterns
+        placeholders = ['your-', 'sk-placeholder', 'xxx', 'yyy', 'zzz', 'example', 'replace-me']
+        key_lower = key.lower()
+        return not any(placeholder in key_lower for placeholder in placeholders)
+    
+    def _get_available_provider(self) -> tuple[str, ModelProvider]:
+        """Find an available provider based on configured API keys"""
+        import os
+        
+        def is_valid_key(key: str) -> bool:
+            """Check if an API key is valid (not a placeholder)"""
+            if not key:
+                return False
+            # Common placeholder patterns
+            placeholders = ['your-', 'sk-placeholder', 'xxx', 'yyy', 'zzz', 'example', 'replace-me']
+            key_lower = key.lower()
+            return not any(placeholder in key_lower for placeholder in placeholders)
+        
+        # Check API keys in order of preference
+        deepseek_key = (self.api_keys and self.api_keys.get("DEEPSEEK_API_KEY")) or os.getenv("DEEPSEEK_API_KEY")
+        if deepseek_key and is_valid_key(deepseek_key):
+            return "deepseek-chat", ModelProvider.DEEPSEEK
+        
+        anthropic_key = (self.api_keys and self.api_keys.get("ANTHROPIC_API_KEY")) or os.getenv("ANTHROPIC_API_KEY")
+        if anthropic_key and is_valid_key(anthropic_key):
+            return "claude-sonnet-4-5-20250929", ModelProvider.ANTHROPIC
+        
+        groq_key = (self.api_keys and self.api_keys.get("GROQ_API_KEY")) or os.getenv("GROQ_API_KEY")
+        if groq_key and is_valid_key(groq_key):
+            return "llama-3.3-70b-versatile", ModelProvider.GROQ
+        
+        google_key = (self.api_keys and self.api_keys.get("GOOGLE_API_KEY")) or os.getenv("GOOGLE_API_KEY")
+        if google_key and is_valid_key(google_key):
+            return "gemini-2.5-pro-preview-06-05", ModelProvider.GOOGLE
+        
+        # No provider available, return OpenAI (will fail but at least explicit)
+        return "gpt-4.1", ModelProvider.OPENAI
 
 
 class BacktestRequest(BaseHedgeFundRequest):

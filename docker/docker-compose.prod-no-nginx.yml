@@ -1,0 +1,53 @@
+# 不使用 Docker Nginx 的配置
+# 适用于服务器上已有 Nginx 运行的情况
+# 使用方法: docker compose -f docker-compose.prod-no-nginx.yml up -d
+# 然后配置外部 Nginx 代理到这些容器
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    image: deep-investor-agent-backend:latest
+    container_name: deep-investor-agent-backend
+    volumes:
+      - ../.env:/app/.env:ro
+      - backend_data:/app/data
+      - backend_logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    ports:
+      - "8000:8000"  # 暴露后端端口供外部 Nginx 使用
+    restart: "unless-stopped"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        - VITE_API_URL=/api
+    image: deep-investor-agent-frontend:latest
+    container_name: deep-investor-agent-frontend
+    ports:
+      - "8080:80"  # 暴露前端端口供外部 Nginx 使用
+    restart: "unless-stopped"
+    networks:
+      - app-network
+
+volumes:
+  backend_data:
+  backend_logs:
+
+networks:
+  app-network:
+    driver: bridge
+

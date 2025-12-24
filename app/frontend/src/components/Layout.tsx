@@ -13,13 +13,15 @@ import { SidebarStorageService } from '@/services/sidebar-storage';
 import { TabService } from '@/services/tab-service';
 import { ReactFlowProvider } from '@xyflow/react';
 import { ReactNode, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TopBar } from './layout/top-bar';
 
 // Create a LayoutContent component to access the FlowContext, TabsContext, and LayoutContext
-function LayoutContent({ children }: { children: ReactNode }) {
+function LayoutContent({ children }: { children?: ReactNode }) {
   const { reactFlowInstance } = useFlowContext();
   const { openTab } = useTabsContext();
   const { isBottomCollapsed, expandBottomPanel, collapseBottomPanel, toggleBottomPanel } = useLayoutContext();
+  const { t } = useTranslation();
   
   // Initialize sidebar states from storage service
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(() => 
@@ -36,7 +38,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
   const [bottomPanelHeight, setBottomPanelHeight] = useState(300);
 
   const handleSettingsClick = () => {
-    const tabData = TabService.createSettingsTab();
+    const tabData = TabService.createSettingsTab(t('settings.title'));
     openTab(tabData);
   };
 
@@ -181,10 +183,10 @@ function LayoutContent({ children }: { children: ReactNode }) {
 }
 
 interface LayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children }: LayoutProps = {}) {
   return (
     <SidebarProvider defaultOpen={true}>
       <ReactFlowProvider>

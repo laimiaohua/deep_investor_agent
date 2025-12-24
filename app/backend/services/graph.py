@@ -153,6 +153,13 @@ def run_graph(
     start date, end date, show reasoning, model name,
     and model provider.
     """
+    # Extract language from request
+    language = getattr(request, "language", None) if request else None
+    reasoning_detail = getattr(request, "reasoning_detail", None) if request else None
+    
+    # Debug log
+    print(f"[Graph] Running with language: {language}")
+    
     return graph.invoke(
         {
             "messages": [
@@ -172,6 +179,8 @@ def run_graph(
                 "model_name": model_name,
                 "model_provider": model_provider,
                 "request": request,  # Pass the request for agent-specific model access
+                "language": language,
+                "reasoning_detail": reasoning_detail,
             },
         },
     )

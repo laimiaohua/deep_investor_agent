@@ -218,10 +218,15 @@ start_services() {
     print_status "Press Ctrl+C to stop both services"
     echo ""
     
-    # Create a temporary directory for log files
-    LOG_DIR=$(mktemp -d)
+    # Create log directory in project root (absolute path to avoid issues)
+    # Get the absolute path of the project root (parent of app directory)
+    PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    LOG_DIR="$PROJECT_ROOT/logs"
+    mkdir -p "$LOG_DIR"
     BACKEND_LOG="$LOG_DIR/backend.log"
     FRONTEND_LOG="$LOG_DIR/frontend.log"
+    
+    print_status "Log files will be saved to: $LOG_DIR"
     
     # Function to cleanup on exit
     cleanup() {
@@ -236,8 +241,8 @@ start_services() {
             kill "$FRONTEND_PID" 2>/dev/null || true
         fi
         
-        # Clean up log directory
-        rm -rf "$LOG_DIR" 2>/dev/null || true
+        # Don't remove log directory - keep logs for debugging
+        print_status "Log files saved to: $LOG_DIR"
         
         print_success "Services stopped. Goodbye!"
         exit 0
@@ -248,9 +253,13 @@ start_services() {
     
     # Start backend
     print_status "Starting backend server..."
+    print_status "Backend logs: $BACKEND_LOG"
+    # Ensure log directory exists before starting
+    mkdir -p "$LOG_DIR"
     # Run from the app directory (parent of backend) to ensure proper Python imports
-    cd ..
-    poetry run uvicorn app.backend.main:app --reload --host 127.0.0.1 --port 8000 > "$LOG_DIR/backend.log" 2>&1 &
+    cd "$PROJECT_ROOT"
+    # Output to both terminal and log file
+    poetry run uvicorn app.backend.main:app --reload --host 127.0.0.1 --port 8000 2>&1 | tee "$BACKEND_LOG" &
     BACKEND_PID=$!
     cd app
     
@@ -278,8 +287,11 @@ start_services() {
     
     # Start frontend
     print_status "Starting frontend development server..."
+    print_status "Frontend logs: $FRONTEND_LOG"
+    # Ensure log directory exists
+    mkdir -p "$LOG_DIR"
     cd frontend
-    npm run dev > "$FRONTEND_LOG" 2>&1 &
+    npm run dev 2>&1 | tee "$FRONTEND_LOG" &
     FRONTEND_PID=$!
     cd ..
     

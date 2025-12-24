@@ -2,6 +2,8 @@ import ComponentItem from '@/components/panels/right/component-item';
 import { AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useFlowContext } from '@/contexts/flow-context';
 import { ComponentGroup } from '@/data/sidebar-components';
+import { useTranslation } from 'react-i18next';
+import { translateNodeName } from '@/utils/node-translations';
 
 interface ComponentItemGroupProps {
   group: ComponentGroup;
@@ -14,6 +16,18 @@ export function ComponentItemGroup({
 }: ComponentItemGroupProps) {
   const { name, icon: Icon, iconColor, items } = group;
   const { addComponentToFlow } = useFlowContext();
+  const { t } = useTranslation();
+
+  // Map component group names to translation keys
+  const getGroupName = (groupName: string): string => {
+    const nameMap: Record<string, string> = {
+      'Start Nodes': t('sidebar.right.startNodes'),
+      'Analysts': t('sidebar.right.analysts'),
+      'Swarms': t('sidebar.right.swarms'),
+      'End Nodes': t('sidebar.right.endNodes'),
+    };
+    return nameMap[groupName] || groupName;
+  };
 
   const handleItemClick = async (componentName: string) => {
     try {
@@ -28,7 +42,7 @@ export function ComponentItemGroup({
       <AccordionTrigger className="px-4 py-2 text-sm hover-bg hover:no-underline">
         <div className="flex items-center gap-2">
           <Icon size={16} className={iconColor} />
-          <span className="capitalize">{name}</span>
+          <span className="capitalize">{getGroupName(name)}</span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-4">
@@ -37,7 +51,7 @@ export function ComponentItemGroup({
             <ComponentItem 
               key={item.name}
               icon={item.icon} 
-              label={item.name} 
+              label={translateNodeName(item.name)} 
               isActive={activeItem === item.name}
               onClick={() => handleItemClick(item.name)}
             />

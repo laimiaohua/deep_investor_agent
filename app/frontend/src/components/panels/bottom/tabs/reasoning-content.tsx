@@ -1,9 +1,11 @@
 import { Copy } from 'lucide-react';
 import { useState } from 'react';
 import { isJsonString } from './output-tab-utils';
+import { useTranslation } from 'react-i18next';
 
 // Component to render reasoning content with JSON formatting and copy button
 export function ReasoningContent({ content }: { content: any }) {
+  const { t } = useTranslation();
   const [copySuccess, setCopySuccess] = useState(false);
   
   if (!content) return null;
@@ -27,10 +29,10 @@ export function ReasoningContent({ content }: { content: any }) {
       <button 
         onClick={copyToClipboard}
         className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 text-xs p-1 rounded hover:bg-accent bg-background text-muted-foreground border border-border"
-        title="Copy to clipboard"
+        title={t('nodes.output.copyToClipboard')}
       >
         <Copy className="h-3 w-3" />
-        <span className="text-xs">{copySuccess ? 'Copied!' : 'Copy'}</span>
+        <span className="text-xs">{copySuccess ? t('nodes.output.copied') : t('nodes.output.copy')}</span>
       </button>
       
       {isJson ? (

@@ -1,158 +1,496 @@
-# AI Hedge Fund
+# Deep Investor Agent
 
-This is a proof of concept for an AI-powered hedge fund.  The goal of this project is to explore the use of AI to make trading decisions.  This project is for **educational** purposes only and is not intended for real trading or investment.
+Deep Investor Agent 是一个基于 AI 的智能投资决策系统，通过多个专业投资智能体协同工作，为股票投资提供分析和决策建议。本项目基于 [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) 项目改造而来，采用 MIT 开源协议。
 
-This system employs several agents working together:
+### 主要优化与改造
 
-1. Aswath Damodaran Agent - The Dean of Valuation, focuses on story, numbers, and disciplined valuation
-2. Ben Graham Agent - The godfather of value investing, only buys hidden gems with a margin of safety
-3. Bill Ackman Agent - An activist investor, takes bold positions and pushes for change
-4. Cathie Wood Agent - The queen of growth investing, believes in the power of innovation and disruption
-5. Charlie Munger Agent - Warren Buffett's partner, only buys wonderful businesses at fair prices
-6. Michael Burry Agent - The Big Short contrarian who hunts for deep value
-7. Mohnish Pabrai Agent - The Dhandho investor, who looks for doubles at low risk
-8. Peter Lynch Agent - Practical investor who seeks "ten-baggers" in everyday businesses
-9. Phil Fisher Agent - Meticulous growth investor who uses deep "scuttlebutt" research 
-10. Rakesh Jhunjhunwala Agent - The Big Bull of India
-11. Stanley Druckenmiller Agent - Macro legend who hunts for asymmetric opportunities with growth potential
-12. Warren Buffett Agent - The oracle of Omaha, seeks wonderful companies at a fair price
-13. Valuation Agent - Calculates the intrinsic value of a stock and generates trading signals
-14. Sentiment Agent - Analyzes market sentiment and generates trading signals
-15. Fundamentals Agent - Analyzes fundamental data and generates trading signals
-16. Technicals Agent - Analyzes technical indicators and generates trading signals
-17. Risk Manager - Calculates risk metrics and sets position limits
-18. Portfolio Manager - Makes final trading decisions and generates orders
+相比原项目 [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund)，本项目进行了以下重要优化与改造：
 
-<img width="1042" alt="Screenshot 2025-03-22 at 6 19 07 PM" src="https://github.com/user-attachments/assets/cbae3dcf-b571-490d-b0ad-3f0f035ac0d4" />
+1. **🌏 扩展市场覆盖范围**: 在原有美股分析的基础上，新增了对 **A股** 和 **港股** 市场的支持，使系统能够分析中国内地和香港市场的股票
+2. **🇨🇳 增加中国投资大师智能体**: 新增了 5 个中国投资大师智能体（段永平、张磊、邱国鹭、冯柳、但斌），这些智能体基于中国市场的投资理念和实践，能够更好地理解和分析中国市场的投资机会
+3. **📝 多语言支持**: 增加了 **简体中文** 和 **繁体中文** 支持，方便中国大陆、香港、台湾等地区的投资者使用，提升了系统的本地化体验
 
-Note: the system does not actually make any trades.
+> **⚠️ 重要提示**: 本项目仅用于**教育和研究目的**，不用于实际交易或投资。系统不会执行任何实际交易。
 
-[![Twitter Follow](https://img.shields.io/twitter/follow/virattt?style=social)](https://twitter.com/virattt)
+## 项目简介
 
-## Disclaimer
+Deep Investor Agent 是一个概念验证项目，旨在探索使用 AI 进行投资决策的可能性。系统通过多个模拟不同投资风格的智能体协同工作，从多个维度分析股票，最终生成投资建议。
 
-This project is for **educational and research purposes only**.
+本项目在 [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) 的基础上，针对中国市场的特点和需求进行了深度定制和优化，不仅支持美股分析，还扩展了对 A股和港股的支持，并增加了中国投资大师的投资理念，为中文用户提供了更好的使用体验。
 
-- Not intended for real trading or investment
-- No investment advice or guarantees provided
-- Creator assumes no liability for financial losses
-- Consult a financial advisor for investment decisions
-- Past performance does not indicate future results
+### 核心特性
 
-By using this software, you agree to use it solely for learning purposes.
+- 🤖 **多智能体协同**: 23 个专业投资智能体，涵盖价值投资、成长投资、技术分析等多种投资风格
+  - 包含 12 个国际投资大师智能体（巴菲特、芒格、达摩达兰等）
+  - 包含 5 个中国投资大师智能体（段永平、张磊、邱国鹭、冯柳、但斌）
+  - 包含 6 个专业分析智能体（估值、情绪、基本面、技术、风险管理、组合管理）
+- 📊 **多维度分析**: 基本面分析、技术分析、估值分析、市场情绪分析
+- 🌍 **多市场支持**: 支持美股、A股、港股市场
+  - 美股：支持所有美股股票代码（如 AAPL、MSFT、NVDA 等）
+  - A股：支持沪深两市股票代码（如 000001、600000 等）
+  - 港股：支持港股股票代码（如 00700、09988 等）
+- 🌐 **多语言支持**: 支持简体中文、繁体中文，方便中国、香港、台湾等地区的投资者使用
+- 🎯 **风险管理**: 内置风险管理和投资组合管理模块
+- 💻 **多种使用方式**: 支持命令行界面和 Web 应用界面
+- 🔄 **回测功能**: 内置回测引擎，可以验证投资策略的历史表现
 
-## Table of Contents
-- [How to Install](#how-to-install)
-- [How to Run](#how-to-run)
-  - [⌨️ Command Line Interface](#️-command-line-interface)
-  - [🖥️ Web Application](#️-web-application)
-- [How to Contribute](#how-to-contribute)
-- [Feature Requests](#feature-requests)
-- [License](#license)
+## 投资智能体列表
 
-## How to Install
+本系统包含以下 23 个投资智能体：
 
-Before you can run the AI Hedge Fund, you'll need to install it and set up your API keys. These steps are common to both the full-stack web application and command line interface.
+### 国际投资大师智能体
 
-### 1. Clone the Repository
+1. **Aswath Damodaran Agent** - 估值大师，专注于故事、数据和严谨的估值方法
+2. **Ben Graham Agent** - 价值投资之父，只买入具有安全边际的隐藏宝石
+3. **Bill Ackman Agent** - 激进投资者，采取大胆立场并推动变革
+4. **Cathie Wood Agent** - 成长投资女王，相信创新和颠覆的力量
+5. **Charlie Munger Agent** - 巴菲特合伙人，只以合理价格买入优秀企业
+6. **Michael Burry Agent** - 《大空头》中的逆向投资者，寻找深度价值
+7. **Mohnish Pabrai Agent** - Dhandho 投资者，寻找低风险的双倍回报
+8. **Peter Lynch Agent** - 实用投资者，在日常业务中寻找"十倍股"
+9. **Phil Fisher Agent** - 严谨的成长投资者，使用深入的"小道消息"研究
+10. **Rakesh Jhunjhunwala Agent** - 印度大牛
+11. **Stanley Druckenmiller Agent** - 宏观传奇，寻找具有增长潜力的不对称机会
+12. **Warren Buffett Agent** - 奥马哈先知，以合理价格寻求优秀公司
+
+### 中国投资大师智能体
+
+13. **段永平 Agent** - 中国长期价值投资者，专注于高质量消费和互联网公司
+14. **张磊 Agent** - 中国长期复利投资者，强调"好公司 + 好价格 + 长时间"
+15. **邱国鹭 Agent** - 中国宏观和周期价值投资者，结合自上而下和自下而上的思维
+16. **冯柳 Agent** - 中国逆向、耐心投资者，专注于预期差距和静默的基本面改善
+17. **但斌 Agent** - 中国价值投资者，偏爱领先消费和优质蓝筹公司作为"时间的朋友"
+
+### 专业分析智能体
+
+18. **Valuation Agent** - 计算股票内在价值并生成交易信号
+19. **Sentiment Agent** - 分析市场情绪并生成交易信号
+20. **Fundamentals Agent** - 分析基本面数据并生成交易信号
+21. **Technicals Agent** - 分析技术指标并生成交易信号
+22. **Risk Manager** - 计算风险指标并设置仓位限制
+23. **Portfolio Manager** - 做出最终交易决策并生成订单
+
+## 免责声明
+
+本项目仅用于**教育和研究目的**。
+
+- ❌ 不用于实际交易或投资
+- ❌ 不提供投资建议或保证
+- ❌ 创建者不对财务损失承担责任
+- ✅ 投资决策请咨询财务顾问
+- ⚠️ 过往表现不代表未来结果
+
+使用本软件即表示您同意仅将其用于学习目的。
+
+## 目录
+
+- [快速开始](#快速开始)
+- [安装指南](#安装指南)
+- [使用方式](#使用方式)
+  - [命令行界面](#命令行界面)
+  - [Web 应用](#web-应用)
+- [生产环境部署](#生产环境部署)
+- [功能特性](#功能特性)
+- [贡献指南](#贡献指南)
+- [许可证](#许可证)
+
+## 快速开始
+
+### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/virattt/ai-hedge-fund.git
-cd ai-hedge-fund
+git clone https://github.com/your-username/deep_investor_agent.git
+cd deep_investor_agent
 ```
 
-### 2. Set up API keys
+### 2. 安装依赖
 
-Create a `.env` file for your API keys:
 ```bash
-# Create .env file for your API keys (in the root directory)
+# 安装 Poetry (如果尚未安装)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# 安装项目依赖
+poetry install
+```
+
+### 3. 配置 API 密钥
+
+创建 `.env` 文件并配置必要的 API 密钥：
+
+```bash
+# 复制示例文件
 cp .env.example .env
 ```
 
-Open and edit the `.env` file to add your API keys:
-```bash
-# For running LLMs hosted by openai (gpt-4o, gpt-4o-mini, etc.)
-OPENAI_API_KEY=your-openai-api-key
+编辑 `.env` 文件，添加以下 API 密钥：
 
-# For getting financial data to power the hedge fund
+```bash
+# LLM API 密钥 (至少需要配置一个)
+OPENAI_API_KEY=your-openai-api-key
+# 或
+GROQ_API_KEY=your-groq-api-key
+# 或
+ANTHROPIC_API_KEY=your-anthropic-api-key
+# 或
+DEEPSEEK_API_KEY=your-deepseek-api-key
+
+# 美股数据 API 密钥
 FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
+
+# A股/港股数据 API 密钥
+DEEPALPHA_API_KEY=your-deepalpha-api-key
 ```
 
-**Important**: You must set at least one LLM API key (e.g. `OPENAI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, or `DEEPSEEK_API_KEY`) for the hedge fund to work. 
+**重要提示**:
+- 必须至少配置一个 LLM API 密钥（如 `OPENAI_API_KEY`、`GROQ_API_KEY` 等）
+- 美股数据：AAPL、GOOGL、MSFT、NVDA、TSLA 的数据是免费的，不需要 API 密钥。其他股票需要配置 `FINANCIAL_DATASETS_API_KEY`
+- A股/港股数据：如需分析 A 股（如 000001、600000）或港股，需要配置 `DEEPALPHA_API_KEY`
 
-**Financial Data**: Data for AAPL, GOOGL, MSFT, NVDA, and TSLA is free and does not require an API key. For any other ticker, you will need to set the `FINANCIAL_DATASETS_API_KEY` in the .env file.
+### 4. 运行示例
 
-## How to Run
+```bash
+# 使用命令行界面分析股票
+poetry run python src/main.py --ticker AAPL,MSFT,NVDA
 
-### ⌨️ Command Line Interface
+# 使用本地 LLM (Ollama)
+poetry run python src/main.py --ticker AAPL,MSFT,NVDA --ollama
 
-You can run the AI Hedge Fund directly via terminal. This approach offers more granular control and is useful for automation, scripting, and integration purposes.
+# 运行回测
+poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA
+```
 
-<img width="992" alt="Screenshot 2025-01-06 at 5 50 17 PM" src="https://github.com/user-attachments/assets/e8ca04bf-9989-4a7d-a8b4-34e04666663b" />
+## 安装指南
 
-#### Quick Start
+### 系统要求
 
-1. Install Poetry (if not already installed):
+- Python 3.11 或更高版本
+- Poetry (Python 包管理器)
+- 至少一个 LLM API 密钥
+
+### 详细安装步骤
+
+1. **安装 Poetry**
+
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
 ```
 
-2. Install dependencies:
+2. **安装项目依赖**
+
 ```bash
 poetry install
 ```
 
-#### Run the AI Hedge Fund
+3. **配置环境变量**
+
+创建 `.env` 文件并添加必要的 API 密钥（见[快速开始](#快速开始)部分）
+
+## 使用方式
+
+### 命令行界面
+
+命令行界面提供更细粒度的控制，适合自动化、脚本和集成场景。
+
+#### 基本用法
+
 ```bash
+# 分析指定股票
 poetry run python src/main.py --ticker AAPL,MSFT,NVDA
-```
 
-You can also specify a `--ollama` flag to run the AI hedge fund using local LLMs.
-
-```bash
-poetry run python src/main.py --ticker AAPL,MSFT,NVDA --ollama
-```
-
-You can optionally specify the start and end dates to make decisions over a specific time period.
-
-```bash
+# 指定时间范围
 poetry run python src/main.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01
+
+# 使用本地 LLM (Ollama)
+poetry run python src/main.py --ticker AAPL,MSFT,NVDA --ollama
+
+# 显示详细推理过程
+poetry run python src/main.py --ticker AAPL --show-reasoning
 ```
 
-#### Run the Backtester
+#### 回测功能
+
 ```bash
+# 运行回测
 poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA
+
+# 回测指定时间范围
+poetry run python src/backtester.py --ticker AAPL --start-date 2024-01-01 --end-date 2024-12-31
 ```
 
-**Example Output:**
-<img width="941" alt="Screenshot 2025-01-06 at 5 47 52 PM" src="https://github.com/user-attachments/assets/00e794ea-8628-44e6-9a84-8f8a31ad3b47" />
+### Web 应用
 
+Web 应用提供友好的图形界面，推荐给偏好可视化界面的用户。
 
-Note: The `--ollama`, `--start-date`, and `--end-date` flags work for the backtester, as well!
+详细的 Web 应用安装和运行说明请参考 [app/README.md](app/README.md)。
 
-### 🖥️ Web Application
+#### 启动 Web 应用
 
-The new way to run the AI Hedge Fund is through our web application that provides a user-friendly interface. This is recommended for users who prefer visual interfaces over command line tools.
+```bash
+# 启动后端服务
+cd app/backend
+poetry run uvicorn main:app --reload
 
-Please see detailed instructions on how to install and run the web application [here](https://github.com/virattt/ai-hedge-fund/tree/main/app).
+# 启动前端服务 (新终端窗口)
+cd app/frontend
+npm install
+npm run dev
+```
 
-<img width="1721" alt="Screenshot 2025-06-28 at 6 41 03 PM" src="https://github.com/user-attachments/assets/b95ab696-c9f4-416c-9ad1-51feb1f5374b" />
+访问 `http://localhost:5173` 使用 Web 界面。
 
+## 生产环境部署
 
-## How to Contribute
+本项目支持使用 Docker 和 Nginx 部署到生产环境。详细的部署指南请参考 [docker/DEPLOYMENT.md](docker/DEPLOYMENT.md)。
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+### Docker 目录精简说明
+- 仅保留 `docker-compose.prod.yml`（内置 Nginx）与 `docker-compose.prod-no-nginx.yml`（外部 Nginx）两条生产路径
+- 旧版单容器/命令行运行文件已移除：`docker-compose.yml`、`Dockerfile`（单容器）、`run.sh`、`run.bat`、`docker-compose.prod-alt.yml`
+- 常用脚本：`deploy.sh`、`deploy-no-nginx.sh`、`setup-ssl.sh`、`clean-docker.sh`，诊断脚本：`check-ports.sh`、`check-existing-nginx.sh`、`check-dns.sh`
 
-**Important**: Please keep your pull requests small and focused.  This will make it easier to review and merge.
+### 快速部署
 
-## Feature Requests
+1. **准备环境**
+   ```bash
+   # 确保已安装 Docker 和 Docker Compose
+   docker --version
+   docker-compose --version
+   ```
 
-If you have a feature request, please open an [issue](https://github.com/virattt/ai-hedge-fund/issues) and make sure it is tagged with `enhancement`.
+2. **配置环境变量**
+   ```bash
+   # 复制并编辑 .env 文件
+   cp .env.example .env
+   nano .env
+   ```
 
-## License
+3. **配置 SSL 证书**
+   ```bash
+   # 将 SSL 证书放置在 docker/nginx/ssl/ 目录
+   mkdir -p docker/nginx/ssl
+   cp /path/to/fullchain.pem docker/nginx/ssl/
+   cp /path/to/privkey.pem docker/nginx/ssl/
+   ```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+4. **部署应用**
+   ```bash
+   cd docker
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
+
+### 部署架构
+
+```
+Internet
+   |
+   v
+Nginx (HTTPS:443)
+   |
+   +---> Frontend (Vue3/React)
+   |
+   +---> Backend API (/api/*)
+   |      |
+   |      v
+   |    FastAPI (8000)
+   |
+   +---> Documentation (/documentation)
+         |
+         v
+       FastAPI Docs
+```
+
+### 访问地址
+
+部署成功后，可以通过以下地址访问：
+
+- **前端应用**: `https://deepinvestoragent.gravitechinnovations.com`
+- **API 文档**: `https://deepinvestoragent.gravitechinnovations.com/documentation`
+- **API 端点**: `https://deepinvestoragent.gravitechinnovations.com/api`
+- **健康检查**: `https://deepinvestoragent.gravitechinnovations.com/api/health`（Nginx 需使用 `location /api/ { proxy_pass http://127.0.0.1:8000/; }` 去掉 `/api` 前缀）
+
+### 服务管理
+
+```bash
+cd docker
+
+# 查看服务状态
+docker-compose -f docker-compose.prod.yml ps
+
+# 查看日志
+docker-compose -f docker-compose.prod.yml logs -f
+
+# 重启服务
+docker-compose -f docker-compose.prod.yml restart
+
+# 停止服务
+docker-compose -f docker-compose.prod.yml down
+
+# 更新应用
+git pull
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+更多详细信息请参考 [docker/DEPLOYMENT.md](docker/DEPLOYMENT.md)。
+
+## 功能特性
+
+### 分析报告优化
+
+- **详细的分析依据和结论**: 所有智能体会生成详细的分析报告（200-500 字符），包含：
+  - 核心分析依据：具体的数据指标、财务表现、估值水平
+  - 关键因素分析：业务模式、竞争优势、管理质量等
+  - 投资逻辑：为什么做出这个判断，基于哪些关键因素
+  - 风险提示：需要注意的风险点
+  - 明确结论：投资建议和理由
+
+### 多市场数据支持
+
+- **独立的 API Key 配置**: 支持为美股和 A 股/港股配置独立的 API keys
+- **改进的错误处理**: 提供清晰的错误信息，帮助快速定位和解决问题
+- **自动数据源选择**: 系统会根据股票代码自动选择正确的数据源
+
+### 完整的中文本地化支持
+
+- **进度状态消息完整翻译**: 所有智能体的数据获取和分析过程中的状态消息都已完整翻译为中文
+  - 数据获取阶段：如"正在获取财务指标"、"正在获取市值"等
+  - 分析阶段：如"正在分析基本面"、"正在分析竞争护城河"等
+  - 计算阶段：如"正在计算内在价值"、"正在计算WACC和增强DCF"等
+  - 生成阶段：如"正在生成巴菲特风格分析"、"正在生成芒格风格分析"等
+- **智能体语言自动设置**: 所有智能体都会根据用户选择的语言自动设置进度显示语言
+- **LLM 输出强制中文**: 在中文版本中，所有 LLM 生成的分析报告和推理过程都强制使用中文输出
+- **中文名称优化**: 统一群组名称翻译，现使用「经典分析」（Data Wizards）、「独特观点」（Market Mavericks）、「价值投资」（Value Investors），确保界面术语易懂且符合中文习惯
+
+### 健壮的错误处理和重试机制
+
+- **自动重试机制**: API 请求失败时会自动重试（最多 3 次），支持：
+  - 网络超时错误（自动重试，指数退避策略）
+  - 连接错误（自动重试，指数退避策略）
+  - 服务器错误（5xx，自动重试）
+  - 频率限制（429，自动重试，延迟退避）
+- **容错处理**: 单个股票的数据获取失败不会影响其他股票的分析
+  - 如果某个股票的数据获取失败，会跳过该股票并继续处理其他股票
+  - 失败的股票会返回中性信号（neutral）和详细的错误说明
+  - 确保即使部分数据源不可用，也能完成其他股票的分析
+- **友好的错误提示**: 提供详细的中文错误信息，帮助快速定位问题
+  - API 余额不足（402）：提示充值
+  - API 密钥无效（401）：提示检查配置
+  - 网络错误：提示检查网络连接
+  - 超时错误：自动重试，无需手动干预
+- **降级策略**: 当主要数据源失败时，尝试使用备用数据源或返回默认值
+  - A 股/港股数据获取失败时，会尝试使用备用 API
+  - 部分数据缺失时，使用可用数据进行部分分析
+
+### 分析结果展示与进度
+
+- **LLM 输出**: 当前版本已关闭流式输出，分析结果在完成后一次性展示
+- **实时进度更新**: 仍保留进度状态更新（获取数据、分析步骤、生成阶段），但不再流式展示内容
+- **智能状态显示**: 根据分析进度自动更新节点状态
+  - 进行中：显示加载动画和当前步骤
+  - 完成：显示完成状态和最终结果
+  - 错误：显示错误信息和失败原因
+
+### 支持的 LLM 提供商
+
+- OpenAI (GPT-4, GPT-4o, GPT-3.5 等)
+- Anthropic (Claude)
+- Groq (快速推理)
+- DeepSeek
+- Ollama (本地运行)
+- Google Gemini
+- GigaChat
+- xAI (Grok)
+
+## 项目结构
+
+```
+deep_investor_agent/
+├── src/                    # 核心源代码
+│   ├── agents/            # 投资智能体
+│   ├── backtesting/       # 回测引擎
+│   ├── data/              # 数据获取和处理
+│   ├── graph/             # 工作流图
+│   ├── llm/               # LLM 集成
+│   ├── tools/             # 工具函数
+│   └── utils/             # 工具类
+├── app/                   # Web 应用
+│   ├── backend/           # FastAPI 后端
+│   └── frontend/          # Vue3 前端
+├── tests/                 # 测试文件
+├── docker/               # Docker 配置
+├── LICENSE               # MIT 许可证
+└── README.md             # 本文件
+```
+
+## 贡献指南
+
+我们欢迎所有形式的贡献！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+**重要提示**: 请保持 Pull Request 小而专注，这将使审查和合并更容易。
+
+### 开发规范
+
+- 遵循 Python PEP 8 代码风格
+- 为新功能添加测试
+- 更新相关文档
+- 确保所有测试通过
+
+## 功能请求
+
+如果您有功能请求，请打开一个 [Issue](https://github.com/your-username/deep_investor_agent/issues) 并确保标记为 `enhancement`。
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE) 开源。
+
+### 版权声明
+
+```
+Copyright (c) 2025 Deep Investor Agent Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## 致谢
+
+本项目基于 [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) 项目改造而来，感谢原项目的贡献者。
+
+### 主要改进点
+
+相比原项目，本项目的主要改进包括：
+
+1. **市场扩展**: 新增 A股和港股市场支持，使系统能够分析中国内地和香港市场的股票
+2. **智能体扩展**: 新增 5 个中国投资大师智能体，基于中国市场的投资理念和实践
+3. **本地化优化**: 增加简体中文和繁体中文支持，提升中文用户的使用体验
+
+## 联系方式
+
+如有问题或建议，请通过以下方式联系：
+
+- 提交 [Issue](https://github.com/your-username/deep_investor_agent/issues)
+- 创建 [Pull Request](https://github.com/your-username/deep_investor_agent/pulls)
+
+---
+
+**再次提醒**: 本项目仅用于教育和研究目的，不用于实际交易或投资。使用本软件即表示您理解并同意此免责声明。

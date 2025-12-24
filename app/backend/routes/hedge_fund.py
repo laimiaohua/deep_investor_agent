@@ -5,7 +5,7 @@ import asyncio
 
 from app.backend.database import get_db
 from app.backend.models.schemas import ErrorResponse, HedgeFundRequest, BacktestRequest, BacktestDayResult, BacktestPerformanceMetrics
-from app.backend.models.events import StartEvent, ProgressUpdateEvent, ErrorEvent, CompleteEvent
+from app.backend.models.events import StartEvent, ProgressUpdateEvent, ErrorEvent, CompleteEvent, LLMStreamEvent
 from app.backend.services.graph import create_graph, parse_hedge_fund_response, run_graph_async
 from app.backend.services.portfolio import create_portfolio
 from app.backend.services.backtest_service import BacktestService

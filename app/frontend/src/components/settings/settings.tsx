@@ -4,6 +4,7 @@ import { Key, Palette } from 'lucide-react';
 import { useState } from 'react';
 import { ApiKeysSettings, Models } from './';
 import { ThemeSettings } from './appearance';
+import { useTranslation } from 'react-i18next';
 
 interface SettingsProps {
   className?: string;
@@ -18,25 +19,26 @@ interface SettingsNavItem {
 
 export function Settings({ className }: SettingsProps) {
   const [selectedSection, setSelectedSection] = useState('api');
+  const { t } = useTranslation();
 
   const navigationItems: SettingsNavItem[] = [
     {
       id: 'api',
-      label: 'API Keys',
+      label: t('settings.apiKeys.title'),
       icon: Key,
-      description: 'API endpoints and authentication',
+      description: t('settings.apiKeys.description'),
     },
     {
       id: 'models',
-      label: 'Models',
+      label: t('settings.models.title'),
       icon: CubeIcon,
-      description: 'Local and cloud AI models',
+      description: t('settings.models.description'),
     },
     {
       id: 'theme',
-      label: 'Theme',
+      label: t('settings.theme.title'),
       icon: Palette,
-      description: 'Theme and display preferences',
+      description: t('settings.theme.description'),
     },
   ];
 
@@ -59,7 +61,7 @@ export function Settings({ className }: SettingsProps) {
         {/* Left Navigation Pane */}
         <div className="w-60 bg-panel flex-shrink-0">
           <div className="p-4 border-b">
-            <h1 className="text-lg font-semibold text-primary">Settings</h1>
+            <h1 className="text-lg font-semibold text-primary">{t('settings.title')}</h1>
           </div>
           <nav className="p-2">
             {navigationItems.map((item) => {

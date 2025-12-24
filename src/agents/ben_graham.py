@@ -25,6 +25,7 @@ def ben_graham_agent(state: AgentState, agent_id: str = "ben_graham_agent"):
     3. Discount to intrinsic value (e.g. Graham Number or net-net).
     4. Adequate margin of safety.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     end_date = data["end_date"]
     tickers = data["tickers"]

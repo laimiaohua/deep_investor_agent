@@ -1,0 +1,120 @@
+# 外部 Nginx 配置示例
+# 如果您的服务器上已有 Nginx 运行，可以将此配置添加到现有 Nginx 配置中
+# 这样就不需要在 Docker 中运行 Nginx，避免端口冲突
+
+# 将此配置添加到 /etc/nginx/conf.d/deepinvestoragent.conf (CentOS/RHEL)
+# 或 /etc/nginx/sites-available/deepinvestoragent (Debian/Ubuntu)
+
+# 后端 API 服务
+upstream deep_investor_backend {
+    server 127.0.0.1:8000;  # Docker 容器的后端端口映射
+    keepalive 32;
+}
+
+# 前端应用服务
+upstream deep_investor_frontend {
+    server 127.0.0.1:8080;  # Docker 容器的前端端口映射
+    keepalive 32;
+}
+
+# HTTP 重定向到 HTTPS
+server {
+    listen 80;
+    server_name deepinvestoragent.gravitechinnovations.com;
+    
+    # Let's Encrypt 验证
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}
+
+# HTTPS 服务器
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name deepinvestoragent.gravitechinnovations.com;
+
+    # SSL 证书配置
+    ssl_certificate /etc/letsencrypt/live/deepinvestoragent.gravitechinnovations.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/deepinvestoragent.gravitechinnovations.com/privkey.pem;
+    
+    # SSL 配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # API 代理到后端（去掉 /api 前缀）
+    # 使用 /api/ 确保去掉前缀，/api/health -> /health
+    location /api/ {
+        proxy_pass http://deep_investor_backend/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+    
+    # 处理 /api（不带尾部斜杠）重定向到 /api/
+    location = /api {
+        return 301 $scheme://$host/api/;
+    }
+
+    # 文档端点
+    location /documentation {
+        proxy_pass http://deep_investor_backend/docs;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /docs {
+        proxy_pass http://deep_investor_backend/docs;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 前端应用
+    location / {
+        proxy_pass http://deep_investor_frontend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $server_name;
+        
+        # 静态资源缓存
+        location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+            proxy_pass http://deep_investor_frontend;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+}
+

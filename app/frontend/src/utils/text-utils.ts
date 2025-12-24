@@ -8,41 +8,16 @@ import { extractBaseAgentKey } from '@/data/node-mappings';
 export function formatTextIntoParagraphs(text: string): string[] {
   if (!text) return [];
   
-  // First split by any existing paragraphs
+  // Simple approach: split by newlines and filter out empty lines
+  // This preserves the original text structure without losing content
   const paragraphs = text.split('\n').filter(p => p.trim().length > 0);
   
-  const formattedParagraphs: string[] = [];
-  
-  // Process each paragraph
-  paragraphs.forEach(paragraph => {
-    // Split into sentences using period, question mark, or exclamation mark followed by space
-    // Modified to avoid treating decimal points as sentence endings
-    const sentences = paragraph.match(/[^.!?]+(?:\.\d+[^.!?]*|[.!?]+\s*)/g) || [paragraph];
-    
-    let currentChunk = '';
-    let sentenceCount = 0;
-    
-    // Group every 2-3 sentences
-    sentences.forEach(sentence => {
-      currentChunk += sentence;
-      sentenceCount++;
-      
-      // After 2-3 sentences, create a new paragraph
-      // Only consider it a break point if it's not part of a decimal number
-      if (sentenceCount >= 2 && (sentenceCount % 3 === 0 || (sentence.endsWith('. ') && !sentence.match(/\d\.\s*$/)))) {
-        formattedParagraphs.push(currentChunk.trim());
-        currentChunk = '';
-        sentenceCount = 0;
-      }
-    });
-    
-    // Add any remaining text
-    if (currentChunk.trim()) {
-      formattedParagraphs.push(currentChunk.trim());
+  // If no newlines found, return the entire text as a single paragraph
+  if (paragraphs.length === 0) {
+    return [text];
     }
-  });
   
-  return formattedParagraphs;
+  return paragraphs;
 }
 
 /**

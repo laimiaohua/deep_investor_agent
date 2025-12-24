@@ -31,6 +31,8 @@ import { createAgentDisplayNames } from '@/utils/text-utils';
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTranslation } from 'react-i18next';
+import { translateNodeName } from '@/utils/node-translations';
 
 interface InvestmentReportDialogProps {
   isOpen: boolean;
@@ -40,6 +42,8 @@ interface InvestmentReportDialogProps {
 }
 
 type ActionType = 'long' | 'short' | 'hold';
+type ActionText = 'buy' | 'sell' | 'short' | 'hold' | string;
+type SignalText = 'bullish' | 'bearish' | 'neutral' | string;
 
 export function InvestmentReportDialog({
   isOpen,
@@ -47,6 +51,8 @@ export function InvestmentReportDialog({
   outputNodeData,
   connectedAgentIds,
 }: InvestmentReportDialogProps) {
+  const { t } = useTranslation();
+  
   // Check if this is a backtest result and return early if it is
   // Backtest results should be displayed in the backtest output tab, not in the investment report dialog
   if (outputNodeData?.decisions?.backtest?.type === 'backtest_complete') {
@@ -74,10 +80,11 @@ export function InvestmentReportDialog({
   const getSignalBadge = (signal: string) => {
     const variant = signal === 'bullish' ? 'success' :
                    signal === 'bearish' ? 'destructive' : 'outline';
+    const displaySignal = translateSignal(signal);
 
     return (
       <Badge variant={variant as any}>
-        {signal}
+        {displaySignal}
       </Badge>
     );
   };
@@ -107,32 +114,55 @@ export function InvestmentReportDialog({
 
   const agentDisplayNames = createAgentDisplayNames(agents);
 
+  const translateAction = (action?: ActionText) => {
+    const map: Record<string, string> = {
+      buy: t('nodes.output.actionBuy'),
+      sell: t('nodes.output.actionSell'),
+      short: t('nodes.output.actionShort'),
+      hold: t('nodes.output.actionHold'),
+    };
+    if (!action) return t('nodes.output.actionUnknown');
+    const key = action.toLowerCase();
+    return map[key] || action.toUpperCase();
+  };
+
+  const translateSignal = (signal?: SignalText) => {
+    const map: Record<string, string> = {
+      bullish: t('nodes.output.signalBullish'),
+      bearish: t('nodes.output.signalBearish'),
+      neutral: t('nodes.output.signalNeutral'),
+    };
+    if (!signal) return t('nodes.output.signalUnknown');
+    const key = signal.toLowerCase();
+    return map[key] || signal;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Investment Report</DialogTitle>
+          <DialogTitle className="text-xl font-bold">{t('nodes.portfolioManager.viewInvestmentReport')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-8 my-4">
           {/* Summary Section */}
           <section>
-            <h2 className="text-lg font-semibold mb-4">Summary</h2>
+            <h2 className="text-lg font-semibold mb-4">{t('nodes.output.summary')}</h2>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>
-                  Recommended trading actions based on analyst signals
+                  {t('nodes.output.recommendedActions')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Ticker</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Confidence</TableHead>
+                      <TableHead>{t('nodes.output.ticker')}</TableHead>
+                      <TableHead>{t('nodes.output.price')}</TableHead>
+                      <TableHead>{t('nodes.output.action')}</TableHead>
+                      <TableHead>{t('nodes.output.quantity')}</TableHead>
+                      <TableHead>{t('nodes.output.confidence')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -146,7 +176,7 @@ export function InvestmentReportDialog({
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getActionIcon(decision.action as ActionType)}
-                              <span className="capitalize">{decision.action}</span>
+                              <span className="capitalize">{translateAction(decision.action)}</span>
                             </div>
                           </TableCell>
                           <TableCell>{decision.quantity}</TableCell>
@@ -161,7 +191,7 @@ export function InvestmentReportDialog({
           </section>
           {/* Analyst Signals Section */}
           <section>
-            <h2 className="text-lg font-semibold mb-4">Analyst Signals</h2>
+            <h2 className="text-lg font-semibold mb-4">{t('nodes.output.analystSignals')}</h2>
             <Accordion type="multiple" className="w-full">
               {tickers.map(ticker => (
                 <AccordionItem key={ticker} value={ticker}>
@@ -171,7 +201,7 @@ export function InvestmentReportDialog({
                       <div className="flex items-center gap-1">
                         {getActionIcon(outputNodeData.decisions[ticker].action as ActionType)}
                         <span className="text-sm font-normal text-muted-foreground">
-                          {outputNodeData.decisions[ticker].action} {outputNodeData.decisions[ticker].quantity} shares
+                          {translateAction(outputNodeData.decisions[ticker].action)} {outputNodeData.decisions[ticker].quantity} {t('nodes.output.shares')}
                         </span>
                       </div>
                     </div>
@@ -189,7 +219,7 @@ export function InvestmentReportDialog({
                               <CardHeader className="bg-muted/50 pb-3">
                                 <div className="flex items-center justify-between">
                                   <CardTitle className="text-base">
-                                    {agentDisplayNames.get(agent) || agent}
+                                    {translateNodeName(agentDisplayNames.get(agent) || agent)}
                                   </CardTitle>
                                   <div className="flex items-center gap-2">
                                     {getSignalBadge(signal.signal)}

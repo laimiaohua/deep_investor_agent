@@ -29,6 +29,16 @@ class ProgressUpdateEvent(BaseEvent):
     timestamp: Optional[str] = None
     analysis: Optional[str] = None
 
+class LLMStreamEvent(BaseEvent):
+    """Event containing streaming LLM output"""
+
+    type: Literal["llm_stream"] = "llm_stream"
+    agent: str
+    ticker: Optional[str] = None
+    content: str  # Streamed content chunk
+    is_final: bool = False  # Whether this is the final chunk
+    timestamp: Optional[str] = None
+
 class ErrorEvent(BaseEvent):
     """Event indicating an error occurred"""
 

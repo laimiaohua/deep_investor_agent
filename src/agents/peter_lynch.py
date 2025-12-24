@@ -38,6 +38,7 @@ def peter_lynch_agent(state: AgentState, agent_id: str = "peter_lynch_agent"):
     The result is a bullish/bearish/neutral signal, along with a
     confidence (0–100) and a textual reasoning explanation.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
 
     data = state["data"]
     end_date = data["end_date"]

@@ -1,8 +1,21 @@
 import { useReactFlow, type NodeProps } from '@xyflow/react';
 import { ChartLine, ChevronDown, Play, Square } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n/config';
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
+// Helper function to convert i18n language code to LLM-friendly language name
+function getLanguageForLLM(): string {
+  const lang = i18n.language;
+  if (lang.startsWith('zh-CN') || lang === 'zh') {
+    return 'Simplified Chinese';
+  } else if (lang.startsWith('zh-TW') || lang.startsWith('zh-HK')) {
+    return 'Traditional Chinese';
+  }
+  return 'English';
+}
 import { Button } from '@/components/ui/button';
 import { CardContent } from '@/components/ui/card';
 import {
@@ -29,10 +42,7 @@ import { cn, formatKeyboardShortcut } from '@/lib/utils';
 import { type StockAnalyzerNode } from '../types';
 import { NodeShell } from './node-shell';
 
-const runModes = [
-  { value: 'single', label: 'Single Run' },
-  { value: 'backtest', label: 'Backtest' },
-];
+// runModes will be created inside component to use i18n
 
 export function StockAnalyzerNode({
   data,
@@ -40,10 +50,17 @@ export function StockAnalyzerNode({
   id,
   isConnectable,
 }: NodeProps<StockAnalyzerNode>) {
+  const { t } = useTranslation();
+  
   // Calculate default dates
   const today = new Date();
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(today.getMonth() - 3);
+  
+  const runModes = [
+    { value: 'single', label: t('nodes.portfolioInput.singleRun') },
+    { value: 'backtest', label: t('nodes.portfolioInput.backtest') },
+  ];
   
   // Use persistent state hooks
   const [tickers, setTickers] = useNodeState(id, 'tickers', 'AAPL,NVDA,TSLA');
@@ -210,6 +227,8 @@ export function StockAnalyzerNode({
         margin_requirement: 0.0, // Default margin requirement
         model_name: undefined,
         model_provider: undefined,
+        // Pass language for LLM output
+        language: getLanguageForLLM(),
       });
     } else {
       // Use the regular hedge fund API for single run
@@ -229,6 +248,8 @@ export function StockAnalyzerNode({
         model_provider: undefined,
         start_date: startDate,
         end_date: endDate,
+        // Pass language for LLM output
+        language: getLanguageForLLM(),
       });
     }
   };
@@ -269,7 +290,7 @@ export function StockAnalyzerNode({
               </div>
               <div className="flex flex-col gap-2">
                 <div className="text-subtitle text-primary flex items-center gap-1">
-                  Run
+                  {t('nodes.portfolioInput.run')}
                 </div>
                 <div className="flex gap-2">
                   <Popover open={open} onOpenChange={setOpen}>
@@ -281,7 +302,7 @@ export function StockAnalyzerNode({
                         className="flex-1 justify-between h-10 px-3 py-2 bg-node border border-border hover:bg-accent"
                       >
                         <span className="text-subtitle">
-                          {runModes.find((mode) => mode.value === runMode)?.label || 'Single Run'}
+                          {runModes.find((mode) => mode.value === runMode)?.label || t('nodes.portfolioInput.singleRun')}
                         </span>
                         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -316,7 +337,7 @@ export function StockAnalyzerNode({
                     size="icon" 
                     variant="secondary"
                     className="flex-shrink-0 transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-95"
-                    title={showAsProcessing ? "Stop" : `Run (${formatKeyboardShortcut('↵')})`}
+                    title={showAsProcessing ? t('common.close') : `${t('nodes.portfolioInput.run')} (${formatKeyboardShortcut('↵')})`}
                     onClick={showAsProcessing ? handleStop : handlePlay}
                     disabled={!canRunHedgeFund && !showAsProcessing}
                   >
@@ -332,13 +353,13 @@ export function StockAnalyzerNode({
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-none">
                     <AccordionTrigger className="!text-subtitle text-primary">
-                      Advanced
+                      {t('nodes.advanced')}
                     </AccordionTrigger>
                     <AccordionContent className="pt-2">
                       <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-2">
                           <div className="text-subtitle text-primary flex items-center gap-1">
-                            Available Cash
+                            {t('nodes.portfolioInput.availableCash')}
                           </div>
                           <div className="relative flex-1">
                             <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none">
@@ -382,7 +403,7 @@ export function StockAnalyzerNode({
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-none">
                     <AccordionTrigger className="!text-subtitle text-primary">
-                      Advanced
+                      {t('nodes.advanced')}
                     </AccordionTrigger>
                     <AccordionContent className="pt-2">
                       <div className="flex flex-col gap-4">

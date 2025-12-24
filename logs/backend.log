@@ -1,0 +1,52 @@
+The currently activated Python version 3.9.12 is not supported by the project (^3.11).
+Trying to find and use a compatible version. 
+Using python3.13 (3.13.2)
+INFO:     Will watch for changes in these directories: ['/Users/laimiaohua/Appproject/gravitech_deep_investor_agent']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [21517] using WatchFiles
+INFO:     Started server process [21631]
+INFO:     Waiting for application startup.
+INFO:app.backend.main:Checking Ollama availability...
+INFO:app.backend.main:ℹ Ollama is not installed. Install it to use local models.
+INFO:app.backend.main:ℹ Visit https://ollama.com to download and install Ollama
+INFO:     Application startup complete.
+INFO:     127.0.0.1:52059 - "GET /hedge-fund/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52058 - "GET /flows/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52061 - "GET /hedge-fund/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52058 - "GET /flows/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52058 - "GET /flows/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52061 - "GET /flows/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52061 - "GET /flows/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52061 - "GET /language-models/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52061 - "GET /language-models/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52061 - "OPTIONS /hedge-fund/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52058 - "POST /hedge-fund/run HTTP/1.1" 200 OK
+[Graph] Running with language: Simplified Chinese
+Debug: 港股 00700 尝试 FINANALYSIS_MAIN 接口，共 2 个候选接口: HKSTK_FINRPT_DER, HKSHARE_FINANCIAL_RATIOS
+Info: 港股 00700 暂不支持 VALUATNANALYD 估值接口，估值数据可能已包含在财务衍生指标中
+Warning: DEEPALPHA_API_KEY not found in state for ticker 00700, will try to use environment variable
+Debug: 港股 00700 尝试 FINANALYSIS_MAIN 接口，共 2 个候选接口: HKSTK_FINRPT_DER, HKSHARE_FINANCIAL_RATIOS
+Info: 港股 00700 暂不支持 VALUATNANALYD 估值接口，估值数据可能已包含在财务衍生指标中
+Debug: 港股 00700 尝试 BALANCE_SHEET 接口，共 3 个候选接口: HKSTK_BALANCE_SHEET_GENE, HKSTK_BALANCE_BANK, HKSTK_BALANCE_INSUR
+[LLM] Agent-specific config for duan_yongping_8deu5s: deepseek-reasoner, DeepSeek
+[LLM] Config for duan_yongping_8deu5s: model=deepseek-reasoner, provider=DeepSeek
+[LLM] Language set to: Simplified Chinese
+[LLM] Using non-streaming call (streaming: True, agent: duan_yongping_8deu5s, ticker: None)
+INFO:httpx:HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:52133 - "GET /hedge-fund/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52133 - "GET /hedge-fund/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52132 - "GET /flows/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52132 - "GET /flows/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52132 - "GET /flows/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52133 - "GET /flows/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52133 - "GET /flows/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52133 - "GET /language-models/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52133 - "GET /language-models/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52324 - "GET /api-keys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52324 - "GET /api-keys/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52324 - "GET /api-keys/DEEPALPHA_API_KEY HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52324 - "GET /api-keys/DEEPALPHA_API_KEY HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52326 - "GET /api-keys/DEEPSEEK_API_KEY HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52326 - "GET /api-keys/DEEPSEEK_API_KEY HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52324 - "GET /api-keys/FINANCIAL_DATASETS_API_KEY HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52324 - "GET /api-keys/FINANCIAL_DATASETS_API_KEY HTTP/1.1" 200 OK

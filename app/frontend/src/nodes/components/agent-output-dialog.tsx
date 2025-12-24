@@ -8,8 +8,10 @@ import {
 import { useNodeContext } from '@/contexts/node-context';
 import { formatTimeFromTimestamp } from '@/utils/date-utils';
 import { formatContent } from '@/utils/text-utils';
+import { translateProgressMessage, translateNodeName } from '@/utils/node-translations';
 import { AlignJustify, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -28,6 +30,7 @@ export function AgentOutputDialog({
   nodeId,
   flowId
 }: AgentOutputDialogProps) {
+  const { t } = useTranslation();
   const { getAgentNodeDataForFlow } = useNodeContext();
   
   // Use the passed flowId instead of getting it from flow context
@@ -110,7 +113,7 @@ export function AgentOutputDialog({
       <DialogTrigger asChild>
         <div className="border-t border-border p-3 flex justify-end items-center cursor-pointer hover:bg-accent/50" onClick={() => onOpenChange(true)}>
           <div className="flex items-center gap-1">
-            <div className="text-subtitle text-muted-foreground">Output</div>
+            <div className="text-subtitle text-muted-foreground">{t('bottomPanel.output')}</div>
             <AlignJustify className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
         </div>
@@ -121,13 +124,13 @@ export function AgentOutputDialog({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>{name}</DialogTitle>
+          <DialogTitle>{translateNodeName(name)}</DialogTitle>
         </DialogHeader>
         
         <div className="grid grid-cols-2 gap-6 pt-4" ref={initialFocusRef} tabIndex={-1}>
           {/* Activity Log Section */}
           <div>
-            <h3 className="font-medium mb-3 text-primary">Log</h3>
+            <h3 className="font-medium mb-3 text-primary">{t('agentDialog.log')}</h3>
             <div className="h-[400px] overflow-y-auto border border-border rounded-lg p-3">
               {messages.length > 0 ? (
                 <div className="p-3 space-y-3">
@@ -137,7 +140,7 @@ export function AgentOutputDialog({
                     <div key={idx} className="border-l-2 border-primary pl-3 text-sm">
                       <div className="text-foreground">
                         {msg.ticker && <span>[{msg.ticker}] </span>}
-                        {msg.message}
+                        {translateProgressMessage(msg.message)}
                       </div>
                       <div className="text-muted-foreground">
                         {formatTimeFromTimestamp(msg.timestamp)}
@@ -147,7 +150,7 @@ export function AgentOutputDialog({
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                  No activity available
+                  {t('agentDialog.noActivityAvailable')}
                 </div>
               )}
             </div>
@@ -156,12 +159,12 @@ export function AgentOutputDialog({
           {/* Analysis Section */}
           <div>
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-medium text-primary">Analysis</h3>
+              <h3 className="font-medium text-primary">{t('nodes.output.analysis')}</h3>
               <div className="flex items-center gap-2">
                 {/* Ticker selector */}
                 {tickersWithDecisions.length > 0 && (
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground font-medium">Ticker:</span>
+                    <span className="text-xs text-muted-foreground font-medium">{t('nodes.output.ticker')}:</span>
                     <select 
                       className="text-xs p-1 rounded bg-background border border-border cursor-pointer"
                       value={selectedTicker || ''}
@@ -179,19 +182,32 @@ export function AgentOutputDialog({
               </div>
             </div>
             <div className="h-[400px] overflow-y-auto border border-border rounded-lg p-3">
+              {/* Display streaming content if available */}
+              {(nodeData as any).streamingContent && (
+                <div className="mb-3 p-3 bg-muted/20 rounded border border-primary/30">
+                  <h4 className="text-xs font-medium text-primary mb-2 flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+                    实时生成中...
+                  </h4>
+                  <div className="text-sm whitespace-pre-wrap max-h-[250px] overflow-y-auto text-foreground/90">
+                    {(nodeData as any).streamingContent}
+                  </div>
+                </div>
+              )}
+              
               {tickersWithDecisions.length > 0 ? (
                 <div className="p-3 rounded-lg text-sm leading-relaxed">
                   {selectedTicker && (
                     <div className="mb-3 flex justify-between items-center">
-                      <div className=" text-muted-foreground font-medium">Summary for {selectedTicker}</div>
+                      <div className=" text-muted-foreground font-medium">{t('agentDialog.summaryFor', { ticker: selectedTicker })}</div>
                       {selectedDecision && (
                         <button 
                           onClick={copyToClipboard}
                           className="flex items-center gap-1.5 text-xs p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground"
-                          title="Copy to clipboard"
+                          title={t('nodes.output.copyToClipboard')}
                         >
                           <Copy className="h-3.5 w-3.5 " />
-                          <span className="font-medium">{copySuccess ? 'Copied!' : 'Copy'}</span>
+                          <span className="font-medium">{copySuccess ? t('nodes.output.copied') : t('nodes.output.copy')}</span>
                         </button>
                       )}
                     </div>
@@ -226,40 +242,49 @@ export function AgentOutputDialog({
                         );
                       } else {
                         // Display as regular text paragraphs
+                        // If formattedContent is an array, map it; otherwise display as single text
+                        const paragraphs = Array.isArray(formattedContent) 
+                          ? formattedContent 
+                          : [formattedContent as string];
+                        
                         return (
-                          (formattedContent as string[]).map((paragraph, idx) => (
-                            <p key={idx} className="mb-3 last:mb-0">{paragraph}</p>
-                          ))
+                          <div className="space-y-3">
+                            {paragraphs.map((paragraph, idx) => (
+                              <p key={idx} className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                                {paragraph}
+                              </p>
+                            ))}
+                          </div>
                         );
                       }
                     })()
                   ) : nodeStatus === 'IN_PROGRESS' ? (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
                       <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Analysis in progress...
+                      {t('nodes.output.analysisInProgress')}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
-                      No analysis available for {selectedTicker}
+                      {t('nodes.output.noAnalysisAvailable', { ticker: selectedTicker })}
                     </div>
                   )}
                 </div>
               ) : nodeStatus === 'IN_PROGRESS' ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  Analysis in progress...
+                  {t('nodes.output.analysisInProgress')}
                 </div>
               ) : nodeStatus === 'COMPLETE' ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Analysis completed with no results
+                  {t('nodes.output.analysisCompleted')}
                 </div>
               ) : nodeStatus === 'ERROR' ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Analysis failed
+                  {t('nodes.output.analysisFailed')}
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                  No analysis available
+                  {t('agentDialog.noAnalysisAvailable')}
                 </div>
               )}
             </div>

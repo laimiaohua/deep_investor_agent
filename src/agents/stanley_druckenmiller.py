@@ -33,6 +33,7 @@ def stanley_druckenmiller_agent(state: AgentState, agent_id: str = "stanley_druc
 
     Returns a bullish/bearish/neutral signal with confidence and reasoning.
     """
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     data = state["data"]
     start_date = data["start_date"]
     end_date = data["end_date"]

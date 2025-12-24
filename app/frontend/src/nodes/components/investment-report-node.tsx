@@ -1,6 +1,8 @@
 import { type NodeProps } from '@xyflow/react';
 import { FileText } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { translateNodeStatus } from '@/utils/node-translations';
 
 import { CardContent } from '@/components/ui/card';
 import { useFlowContext } from '@/contexts/flow-context';
@@ -17,6 +19,7 @@ export function InvestmentReportNode({
   id,
   isConnectable,
 }: NodeProps<InvestmentReportNode>) {  
+  const { t } = useTranslation();
   const { currentFlowId } = useFlowContext();
   const { getOutputNodeDataForFlow } = useNodeContext();
   
@@ -50,7 +53,7 @@ export function InvestmentReportNode({
           <div className="border-t border-border p-3">
             <div className="flex flex-col gap-2">
               <div className="text-subtitle text-muted-foreground flex items-center gap-1">
-                Results
+                {t('nodes.output.results')}
               </div>
               
               <OutputNodeStatus
@@ -59,6 +62,10 @@ export function InvestmentReportNode({
                 isOutputAvailable={isOutputAvailable}
                 isConnected={isConnected}
                 onViewOutput={handleViewOutput}
+                processingText={t('nodes.output.inProgress')}
+                completingText={t('nodes.output.completing')}
+                availableText={t('nodes.output.viewOutput')}
+                idleText={t('nodes.statusIdle')}
               />
             </div>
           </div>

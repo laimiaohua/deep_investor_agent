@@ -25,6 +25,7 @@ class PortfolioManagerOutput(BaseModel):
 def portfolio_management_agent(state: AgentState, agent_id: str = "portfolio_manager"):
     """Makes final trading decisions and generates orders for multiple tickers"""
 
+    progress.set_language(state.get("metadata", {}).get("language") or "en")
     portfolio = state["data"]["portfolio"]
     analyst_signals = state["data"]["analyst_signals"]
     tickers = state["data"]["tickers"]
@@ -208,24 +209,53 @@ def generate_trading_decision(
     compact_signals = _compact_signals({t: signals_by_ticker.get(t, {}) for t in tickers_for_llm})
     compact_allowed = {t: allowed_actions_full[t] for t in tickers_for_llm}
 
-    # Minimal prompt template
+    # Enhanced prompt template with detailed analysis requirements
     template = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "You are a portfolio manager.\n"
-                "Inputs per ticker: analyst signals and allowed actions with max qty (already validated).\n"
-                "Pick one allowed action per ticker and a quantity ≤ the max. "
-                "Keep reasoning very concise (max 100 chars). No cash or margin math. Return JSON only."
+                "You are a professional portfolio manager making final trading decisions.\n\n"
+                "Your responsibilities:\n"
+                "1. Analyze all analyst signals for each ticker (bullish/bearish/neutral with confidence levels)\n"
+                "2. Synthesize multiple analyst opinions into a coherent investment thesis\n"
+                "3. Make trading decisions (buy/sell/short/cover/hold) with appropriate quantities\n"
+                "4. Provide comprehensive reasoning that includes:\n"
+                "   - Summary of analyst consensus or divergence\n"
+                "   - Key factors driving the decision (valuation, growth, risk, sentiment, etc.)\n"
+                "   - Specific metrics or data points that support your decision\n"
+                "   - Risk considerations and position sizing rationale\n"
+                "   - Expected outcome and time horizon\n\n"
+                "Guidelines:\n"
+                "- Pick one allowed action per ticker and a quantity ≤ the max allowed\n"
+                "- Your reasoning should be detailed (200-500 characters), providing complete analysis basis and conclusion\n"
+                "- Reference specific analyst signals and their confidence levels in your reasoning\n"
+                "- Explain why you chose this action over alternatives\n"
+                "- Include quantitative support when available (e.g., '3 out of 5 analysts are bullish with avg confidence 75%')\n"
+                "- No cash or margin calculations needed (already handled)\n"
+                "- Return JSON only with the specified format"
             ),
             (
                 "human",
-                "Signals:\n{signals}\n\n"
-                "Allowed:\n{allowed}\n\n"
-                "Format:\n"
+                "Analyst Signals for each ticker:\n{signals}\n\n"
+                "Allowed Actions and Maximum Quantities:\n{allowed}\n\n"
+                "For each ticker, provide:\n"
+                "1. A trading action (buy/sell/short/cover/hold)\n"
+                "2. The quantity (must be ≤ max allowed)\n"
+                "3. Your confidence level (0-100)\n"
+                "4. Detailed reasoning explaining:\n"
+                "   - How you synthesized the analyst signals\n"
+                "   - What key factors led to this decision\n"
+                "   - Specific evidence supporting your conclusion\n"
+                "   - Risk considerations\n\n"
+                "Return JSON format:\n"
                 "{{\n"
                 '  "decisions": {{\n'
-                '    "TICKER": {{"action":"...","quantity":int,"confidence":int,"reasoning":"..."}}\n'
+                '    "TICKER": {{\n'
+                '      "action": "buy|sell|short|cover|hold",\n'
+                '      "quantity": int,\n'
+                '      "confidence": int (0-100),\n'
+                '      "reasoning": "detailed analysis with complete basis and conclusion (200-500 chars)"\n'
+                "    }}\n"
                 "  }}\n"
                 "}}"
             ),
