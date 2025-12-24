@@ -33,6 +33,7 @@ def michael_burry_agent(state: AgentState, agent_id: str = "michael_burry_agent"
     """Analyse stocks using Michael Burry's deep‑value, contrarian framework."""
     progress.set_language(state.get("metadata", {}).get("language") or "en")
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     data = state["data"]
     end_date: str = data["end_date"]  # YYYY‑MM‑DD
     tickers: list[str] = data["tickers"]
@@ -48,7 +49,7 @@ def michael_burry_agent(state: AgentState, agent_id: str = "michael_burry_agent"
         # Fetch raw data
         # ------------------------------------------------------------------
         progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5, api_key=api_key)
+        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5, api_key=api_key, cn_api_key=cn_api_key)
 
         progress.update_status(agent_id, ticker, "Fetching line items")
         line_items = search_line_items(
@@ -65,6 +66,7 @@ def michael_burry_agent(state: AgentState, agent_id: str = "michael_burry_agent"
             ],
             end_date,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Fetching insider trades")

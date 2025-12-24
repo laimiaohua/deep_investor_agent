@@ -204,11 +204,16 @@ def call_llm(
             # Check if streaming is enabled and model supports it
             if enable_streaming and agent_name and ticker:
                 # Use streaming for better UX (do NOT use structured output for streaming)
-                print(f"[LLM] Attempting streaming call for {agent_name}, ticker: {ticker}")
+                print(f"[LLM] Starting streaming call for {agent_name}, ticker: {ticker}")
                 result = _call_llm_with_streaming(
                     llm, prompt, pydantic_model, agent_name, ticker, model_info
                 )
                 print(f"[LLM] Streaming call completed for {agent_name}")
+                # 流式调用返回的 result 已经是 pydantic 模型实例，直接返回
+                if isinstance(result, pydantic_model):
+                    return result
+                # 如果不是模型实例，说明解析失败，继续重试逻辑
+                raise ValueError("Streaming call did not return a valid model instance")
             else:
                 # Use structured output for non-streaming calls
                 print(f"[LLM] Using non-streaming call (streaming: {enable_streaming}, agent: {agent_name}, ticker: {ticker})")
@@ -221,18 +226,35 @@ def call_llm(
                 result = llm_with_structure.invoke(prompt)
 
             # For non-JSON support models, we need to extract and parse the JSON manually
-            if model_info and not model_info.has_json_mode():
-                parsed_result = extract_json_from_response(result.content)
-                if parsed_result:
-                    return pydantic_model(**parsed_result)
+            # 注意：这里 result 可能是模型实例（structured output）或消息对象（普通调用）
+            if isinstance(result, pydantic_model):
+                # 如果已经是模型实例，直接返回
+                return result
+            elif hasattr(result, 'content'):
+                # 如果是消息对象，提取 content 并解析
+                if model_info and not model_info.has_json_mode():
+                    parsed_result = extract_json_from_response(result.content)
+                    if parsed_result:
+                        return pydantic_model(**parsed_result)
+                    else:
+                        # If JSON parsing failed, raise an exception to trigger retry
+                        error_msg = f"Failed to extract JSON from response. Response content: {result.content[:500]}"
+                        print(f"JSON extraction failed: {error_msg}")
+                        if attempt == max_retries - 1:
+                            raise ValueError(error_msg)
+                        continue  # Retry
                 else:
-                    # If JSON parsing failed, raise an exception to trigger retry
-                    error_msg = f"Failed to extract JSON from response. Response content: {result.content[:500]}"
-                    print(f"JSON extraction failed: {error_msg}")
-                    if attempt == max_retries - 1:
-                        raise ValueError(error_msg)
-                    continue  # Retry
+                    # JSON mode supported, try to parse directly
+                    try:
+                        return pydantic_model(**result.content) if isinstance(result.content, dict) else pydantic_model.model_validate_json(result.content)
+                    except Exception as e:
+                        error_msg = f"Failed to parse response as {pydantic_model.__name__}: {str(e)}"
+                        print(f"Parsing failed: {error_msg}")
+                        if attempt == max_retries - 1:
+                            raise ValueError(error_msg)
+                        continue  # Retry
             else:
+                # 未知类型，尝试直接返回
                 return result
 
         except Exception as e:
@@ -299,27 +321,35 @@ def _call_llm_with_streaming(
         # 使用 stream 方法获取流式输出
         full_content = ""
         chunk_count = 0
+        # 完全关闭详细的流式进度日志，只保留开始和完成日志
+        # 前端已经通过 SSE 实时更新了，不需要后端日志
         
         for chunk in llm.stream(prompt):
             chunk_count += 1
+            # 首先检查是否是 pydantic 模型实例（必须在检查 content 之前）
+            if isinstance(chunk, pydantic_model):
+                print(f"[LLM] Received structured output directly, chunks: {chunk_count}")
+                return chunk
+            
             # 从 chunk 中提取内容
-            if hasattr(chunk, 'content'):
-                content = chunk.content
-            elif isinstance(chunk, str):
+            content = None
+            if isinstance(chunk, str):
                 content = chunk
-            elif isinstance(chunk, dict) and 'content' in chunk:
-                content = chunk['content']
-            else:
-                # 如果是结构化输出，chunk 可能已经是模型实例
-                if isinstance(chunk, pydantic_model):
-                    print(f"[LLM] Received structured output directly, chunks: {chunk_count}")
-                    return chunk
+            elif isinstance(chunk, dict):
+                content = chunk.get('content')
+            elif hasattr(chunk, 'content'):
+                # 确保不是 pydantic 模型（已经检查过了）
+                try:
+                    content = chunk.content
+                except AttributeError:
+                    # 如果访问 content 失败，跳过这个 chunk
+                    continue
+            
+            if not content:
                 continue
             
-            if content:
                 full_content += content
-                # 通过 progress 发送流式更新
-                print(f"[LLM] Streaming chunk #{chunk_count}, length: {len(content)}, total: {len(full_content)}")
+            # 通过 progress 发送流式更新（不输出日志）
                 progress.update_streaming_content(agent_name, ticker, content)
         
         # 流式输出完成，解析完整内容

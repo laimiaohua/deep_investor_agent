@@ -239,6 +239,13 @@
       "danBin": "Emphasizes being 'friends of time' with excellent companies. Prefers brand consumer, healthcare, and blue-chip leaders with long-term growth potential."
     }
   },
+  "welcome": {
+    "title": "Deep investor agent",
+    "description": "Create a flow from the left sidebar (⌘B) to open it in a tab, or open settings (⌘,) to configure your preferences.",
+    "tabsHint": "Flows now open in tabs",
+    "terminalTitle": "Welcome to Deep investor agent Terminal",
+    "terminalHint": "Type commands here..."
+  },
   "progress": {
     "done": "Done",
     "failed": "Failed",

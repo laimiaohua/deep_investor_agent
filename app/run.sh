@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# AI Hedge Fund Web Application Setup and Runner
+# Deep investor agent Web Application Setup and Runner
 # This script makes it easy for non-technical users to run the full web application
 
 set -e  # Exit on any error
@@ -211,9 +211,31 @@ install_frontend() {
     cd ..
 }
 
+# Function to check and free port if needed
+check_and_free_port() {
+    local port=$1
+    local pids=$(lsof -ti:$port 2>/dev/null)
+    
+    if [[ -n "$pids" ]]; then
+        print_warning "Port $port is already in use by process(es): $pids"
+        print_status "Attempting to free port $port..."
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+        sleep 1
+        
+        # Check again
+        if lsof -ti:$port >/dev/null 2>&1; then
+            print_error "Failed to free port $port. Please manually stop the process using: lsof -ti:$port | xargs kill -9"
+            return 1
+        else
+            print_success "Port $port is now free"
+        fi
+    fi
+    return 0
+}
+
 # Function to start both services
 start_services() {
-    print_status "Starting the AI Hedge Fund web application..."
+    print_status "Starting the Deep investor agent web application..."
     print_status "This will start both the backend API and frontend web interface"
     print_status "Press Ctrl+C to stop both services"
     echo ""
@@ -227,6 +249,11 @@ start_services() {
     FRONTEND_LOG="$LOG_DIR/frontend.log"
     
     print_status "Log files will be saved to: $LOG_DIR"
+    
+    # Check and free backend port
+    if ! check_and_free_port 8000; then
+        exit 1
+    fi
     
     # Function to cleanup on exit
     cleanup() {
@@ -285,6 +312,10 @@ start_services() {
         print_warning "Database file not found, but will be created on first API call"
     fi
     
+    # Check and free frontend port (Vite will auto-select another port if needed, but we'll check common ports)
+    print_status "Checking frontend port availability..."
+    # Vite will automatically try another port if 5173 is in use, so we don't need to force kill it
+    
     # Start frontend
     print_status "Starting frontend development server..."
     print_status "Frontend logs: $FRONTEND_LOG"
@@ -314,7 +345,7 @@ start_services() {
     open_browser "http://localhost:5173"
     
     echo ""
-    print_success "🚀 AI Hedge Fund web application is now running!"
+    print_success "🚀 Deep investor agent web application is now running!"
     print_success "🌐 Browser should open automatically to http://localhost:5173"
     echo ""
     print_status "Frontend (Web Interface): http://localhost:5173"
@@ -347,7 +378,7 @@ start_services() {
 # Main execution
 main() {
     echo ""
-    print_status "🚀 AI Hedge Fund Web Application Setup"
+    print_status "🚀 Deep investor agent Web Application Setup"
     print_status "This script will install dependencies and start both frontend and backend services"
     echo ""
     
@@ -362,7 +393,7 @@ main() {
 
 # Show help if requested
 if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
-    echo "AI Hedge Fund Web Application Setup and Runner"
+    echo "Deep investor agent Web Application Setup and Runner"
     echo ""
     echo "Usage: ./run.sh"
     echo ""

@@ -51,6 +51,7 @@ def rakesh_jhunjhunwala_agent(state: AgentState, agent_id: str = "rakesh_jhunjhu
             ],
             end_date,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Getting market cap")

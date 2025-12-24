@@ -107,6 +107,13 @@
     "simplifiedChinese": "简体中文",
     "traditionalChinese": "繁體中文"
   },
+  "welcome": {
+    "title": "深度投資智能體",
+    "description": "從左側邊欄建立流程 (⌘B) 以在標籤頁中開啟，或開啟設定 (⌘,) 來設定您的偏好。",
+    "tabsHint": "流程現在在標籤頁中開啟",
+    "terminalTitle": "歡迎使用深度投資智能體終端",
+    "terminalHint": "在此輸入命令..."
+  },
   "nodes": {
     "status": "狀態",
     "statusIdle": "閒置",

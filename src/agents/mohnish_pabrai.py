@@ -23,6 +23,7 @@ def mohnish_pabrai_agent(state: AgentState, agent_id: str = "mohnish_pabrai_agen
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
 
     analysis_data: dict[str, any] = {}
     pabrai_analysis: dict[str, any] = {}
@@ -31,7 +32,7 @@ def mohnish_pabrai_agent(state: AgentState, agent_id: str = "mohnish_pabrai_agen
     # and potential for doubling in 2-3 years at low risk.
     for ticker in tickers:
         progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        metrics = get_financial_metrics(ticker, end_date, period="annual", limit=8, api_key=api_key)
+        metrics = get_financial_metrics(ticker, end_date, period="annual", limit=8, api_key=api_key, cn_api_key=cn_api_key)
 
         progress.update_status(agent_id, ticker, "Gathering financial line items")
         line_items = search_line_items(
@@ -61,6 +62,7 @@ def mohnish_pabrai_agent(state: AgentState, agent_id: str = "mohnish_pabrai_agen
             period="annual",
             limit=8,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Getting market cap")

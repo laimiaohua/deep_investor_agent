@@ -92,6 +92,12 @@ class DeepAlphaClient:
             print(f"  Full response: {data}")
             raise RuntimeError(f"DeepAlpha API error: code={code}, message={msg}")
 
+        # 添加调试信息：检查响应数据结构
+        if "data" not in data:
+            print(f"WARNING: DeepAlpha API response missing 'data' key for function {function}")
+            print(f"  Response keys: {list(data.keys())}")
+            print(f"  Full response: {data}")
+        
         return data
 
 
@@ -167,6 +173,18 @@ def _get_function_name(base_function: str, symbol: str) -> str:
         return base_function
 
 
+# A股function名称映射表
+# 根据DeepAlpha文档 https://deepalpha.gravitechinnovations.com/documentation
+# A股某些接口名称与通用名称不同
+CN_FUNCTION_MAPPING: Dict[str, str] = {
+    "BALANCE_SHEET": "BALANCE_SHEET",  # A股资产负债表
+    "INCOME_STATEMENT": "INCOME_STATEMENT",  # A股利润表
+    "CASH_FLOW": "CASHFLOW_STATEMENT",  # A股现金流量表（注意：是 CASHFLOW_STATEMENT，不是 CASH_FLOW）
+    "DAILY_PRICE": "MARKET_HISTORICAL_QUOTES",  # A股日线行情（使用 MARKET_HISTORICAL_QUOTES）
+    "FINANALYSIS_MAIN": "FINANALYSIS_MAIN",  # A股财务分析主表
+    "VALUATNANALYD": "VALUATNANALYD",  # A股估值分析
+}
+
 # 港股function名称映射表
 # 根据DeepAlpha文档，所有港股数据接口都使用 HKSTK 或 HKSHARE 前缀
 # 这里定义A股function到港股function的映射关系
@@ -199,10 +217,11 @@ HK_FUNCTION_MAPPING: Dict[str, list[str]] = {
     "CASH_FLOW": [
         "HKSTK_CASHFLOW",
     ],
-    # 日线行情：港股可能使用 MARKET_HISTORICAL_QUOTES 或其他接口
-    # 注意：文档中未明确列出港股行情接口，可能需要使用 MARKET_HISTORICAL_QUOTES
+    # 日线行情：港股使用 HKSTK_MARKET_DATA 或 MARKET_HISTORICAL_QUOTES
+    # 根据 DeepAlpha 文档，港股行情接口可能是 HKSTK_MARKET_DATA
     "DAILY_PRICE": [
         "HKSTK_MARKET_DATA",
+        "MARKET_HISTORICAL_QUOTES",  # 备用接口
     ],
     # 财务衍生指标：港股使用 HKSTK_FINRPT_DER
     # 财务比率：港股使用 HKSHARE_FINANCIAL_RATIOS
@@ -333,8 +352,28 @@ def _query_with_hk_fallback(
         else:
             raise RuntimeError(f"All HK function formats failed for {symbol}")
     else:
-        # A股：直接使用原始function名称
-        return client.query(base_function, security_code=symbol, **params)
+        # A股：使用映射后的function名称（如果存在映射）
+        cn_function = CN_FUNCTION_MAPPING.get(base_function, base_function)
+        
+        # 某些接口使用不同的参数名
+        # MARKET_HISTORICAL_QUOTES 使用 stock_code + market，其余使用 security_code
+        query_params = params.copy()
+        if cn_function == "MARKET_HISTORICAL_QUOTES":
+            query_params["stock_code"] = symbol
+            # 市场参数，A 股使用 "A"，港股使用 "HK"
+            if not query_params.get("market"):
+                query_params["market"] = "HK" if _is_hk_stock(symbol) else "A"
+        else:
+            query_params["security_code"] = symbol
+        
+        resp = client.query(cn_function, **query_params)
+        
+        # 检查响应中是否包含错误信息（即使code=200，也可能包含错误）
+        if isinstance(resp.get("data"), dict) and "error" in resp.get("data", {}):
+            error_msg = resp["data"].get("error", "Unknown error")
+            raise RuntimeError(f"DeepAlpha API returned error for {cn_function} (symbol={symbol}): {error_msg}")
+        
+        return resp
 
 
 def get_balance_sheet_raw(symbol: str, client: DeepAlphaClient | None = None) -> Mapping[str, Dict[str, Any]]:
@@ -361,7 +400,15 @@ def get_balance_sheet_raw(symbol: str, client: DeepAlphaClient | None = None) ->
     try:
         inner_data = resp["data"]["data"]["data"]
     except (KeyError, TypeError) as exc:
-        raise RuntimeError(f"Unexpected BALANCE_SHEET response structure for {symbol}") from exc
+        # 添加详细的调试信息
+        print(f"ERROR: Unexpected BALANCE_SHEET response structure for {symbol}")
+        print(f"  Response keys: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
+        if isinstance(resp, dict) and "data" in resp:
+            print(f"  Response['data'] keys: {list(resp['data'].keys()) if isinstance(resp['data'], dict) else 'Not a dict'}")
+            if isinstance(resp["data"], dict) and "data" in resp["data"]:
+                print(f"  Response['data']['data'] keys: {list(resp['data']['data'].keys()) if isinstance(resp['data']['data'], dict) else 'Not a dict'}")
+                print(f"  Response['data']['data'] type: {type(resp['data']['data'])}")
+        raise RuntimeError(f"Unexpected BALANCE_SHEET response structure for {symbol}. Full response: {resp}") from exc
 
     if not isinstance(inner_data, dict):
         raise RuntimeError(f"BALANCE_SHEET 'data.data.data' should be a dict, got {type(inner_data)}")
@@ -435,7 +482,15 @@ def get_income_statement_raw(symbol: str, client: DeepAlphaClient | None = None)
     try:
         inner_data = resp["data"]["data"]["data"]
     except (KeyError, TypeError) as exc:
-        raise RuntimeError(f"Unexpected INCOME_STATEMENT response structure for {symbol}") from exc
+        # 添加详细的调试信息
+        print(f"ERROR: Unexpected INCOME_STATEMENT response structure for {symbol}")
+        print(f"  Response keys: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
+        if isinstance(resp, dict) and "data" in resp:
+            print(f"  Response['data'] keys: {list(resp['data'].keys()) if isinstance(resp['data'], dict) else 'Not a dict'}")
+            if isinstance(resp["data"], dict) and "data" in resp["data"]:
+                print(f"  Response['data']['data'] keys: {list(resp['data']['data'].keys()) if isinstance(resp['data']['data'], dict) else 'Not a dict'}")
+                print(f"  Response['data']['data'] type: {type(resp['data']['data'])}")
+        raise RuntimeError(f"Unexpected INCOME_STATEMENT response structure for {symbol}. Full response: {resp}") from exc
 
     if not isinstance(inner_data, dict):
         raise RuntimeError(f"INCOME_STATEMENT 'data.data.data' should be a dict, got {type(inner_data)}")
@@ -460,7 +515,15 @@ def get_cash_flow_raw(symbol: str, client: DeepAlphaClient | None = None) -> Map
     try:
         inner_data = resp["data"]["data"]["data"]
     except (KeyError, TypeError) as exc:
-        raise RuntimeError(f"Unexpected CASH_FLOW response structure for {symbol}") from exc
+        # 添加详细的调试信息
+        print(f"ERROR: Unexpected CASH_FLOW response structure for {symbol}")
+        print(f"  Response keys: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
+        if isinstance(resp, dict) and "data" in resp:
+            print(f"  Response['data'] keys: {list(resp['data'].keys()) if isinstance(resp['data'], dict) else 'Not a dict'}")
+            if isinstance(resp["data"], dict) and "data" in resp["data"]:
+                print(f"  Response['data']['data'] keys: {list(resp['data']['data'].keys()) if isinstance(resp['data']['data'], dict) else 'Not a dict'}")
+                print(f"  Response['data']['data'] type: {type(resp['data']['data'])}")
+        raise RuntimeError(f"Unexpected CASH_FLOW response structure for {symbol}. Full response: {resp}") from exc
 
     if not isinstance(inner_data, dict):
         raise RuntimeError(f"CASH_FLOW 'data.data.data' should be a dict, got {type(inner_data)}")
@@ -495,10 +558,15 @@ def get_daily_price_raw(
 
     resp = _query_with_hk_fallback(client, "DAILY_PRICE", symbol, **params)
 
+    # 确保 resp 是字典类型
+    if not isinstance(resp, dict):
+        print(f"Warning: Unexpected response type for DAILY_PRICE: {type(resp)}, response: {resp}")
+        return []
+
     try:
         # 根据 DeepAlpha 文档，行情数据可能在 data.data.data 或 data.data 中
         inner_data = resp.get("data", {}).get("data", {}).get("data") or resp.get("data", {}).get("data")
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError):
         inner_data = None
 
     if inner_data is None:

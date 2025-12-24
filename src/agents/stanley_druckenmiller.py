@@ -39,12 +39,13 @@ def stanley_druckenmiller_agent(state: AgentState, agent_id: str = "stanley_druc
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     analysis_data = {}
     druck_analysis = {}
 
     for ticker in tickers:
         progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        metrics = get_financial_metrics(ticker, end_date, period="annual", limit=5, api_key=api_key)
+        metrics = get_financial_metrics(ticker, end_date, period="annual", limit=5, api_key=api_key, cn_api_key=cn_api_key)
 
         progress.update_status(agent_id, ticker, "Gathering financial line items")
         # Include relevant line items for Stan Druckenmiller's approach:
@@ -74,6 +75,7 @@ def stanley_druckenmiller_agent(state: AgentState, agent_id: str = "stanley_druc
             period="annual",
             limit=5,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Getting market cap")

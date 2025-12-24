@@ -26,6 +26,7 @@ def valuation_analyst_agent(state: AgentState, agent_id: str = "valuation_analys
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     valuation_analysis: dict[str, dict] = {}
 
     for ticker in tickers:
@@ -38,6 +39,7 @@ def valuation_analyst_agent(state: AgentState, agent_id: str = "valuation_analys
             period="ttm",
             limit=8,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
         if not financial_metrics:
             progress.update_status(agent_id, ticker, "Failed: No financial metrics found")
@@ -66,6 +68,7 @@ def valuation_analyst_agent(state: AgentState, agent_id: str = "valuation_analys
             period="ttm",
             limit=8,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
         if len(line_items) < 2:
             progress.update_status(agent_id, ticker, "Failed: Insufficient financial line items")

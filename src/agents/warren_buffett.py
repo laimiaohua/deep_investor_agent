@@ -23,6 +23,7 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     # Collect all analysis for LLM reasoning
     analysis_data = {}
     buffett_analysis = {}
@@ -32,7 +33,7 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
             progress.update_status(agent_id, ticker, "Fetching financial metrics")
             # Fetch required data - request more periods for better trend analysis
             try:
-                metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=10, api_key=api_key)
+                metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=10, api_key=api_key, cn_api_key=cn_api_key)
             except Exception as e:
                 error_msg = str(e)
                 progress.update_status(agent_id, ticker, f"Failed: {error_msg[:50]}")
@@ -67,6 +68,7 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
                     period="ttm",
                     limit=10,
                     api_key=api_key,
+                    cn_api_key=cn_api_key,  # 传递 DeepAlpha API key
                 )
             except Exception as e:
                 error_msg = str(e)

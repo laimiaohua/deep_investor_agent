@@ -238,12 +238,13 @@ class AgentProgress:
         timestamp = datetime.now(timezone.utc).isoformat()
         self.agent_status[agent_name]["timestamp"] = timestamp
         
-        print(f"[Progress] Streaming update for {agent_name}, ticker: {ticker}, content length: {len(content)}, total: {len(self.agent_status[agent_name]['streaming_content'])}")
+        # 完全移除 Progress 的流式更新日志，因为前端已经通过 SSE 实时更新了
+        # 这样可以大幅减少日志输出，提高性能
         
         # Notify handlers with special streaming flag
         for handler in self.update_handlers:
             # Pass streaming content via the analysis parameter
-            print(f"[Progress] Calling handler with streaming content")
+            # 移除每次chunk都输出的日志
             handler(agent_name, ticker, "streaming", content, timestamp)
 
     def get_all_status(self):

@@ -237,8 +237,10 @@ def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None,
                 return prices
             else:
                 # 如果返回空列表，可能是数据不存在或日期范围问题
+                # 对于 A 股/港股，不 fallback 到美股数据源，直接返回空列表
                 print(f"Warning: DeepAlpha returned no price data for {ticker} ({start_date} to {end_date}). "
                       f"Please check if the ticker is valid and the date range is correct.")
+                return []  # 直接返回空列表，不 fallback 到美股数据源
         except Exception as e:
             # 区分不同类型的错误
             error_type = type(e).__name__
@@ -257,7 +259,7 @@ def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None,
                     f"无法获取 A 股数据 {ticker}: DeepAlpha API 网络请求失败。"
                     f"请检查网络连接和 API 服务状态。错误详情: {error_msg}"
                 )
-            # 其他错误
+            # 其他错误：对于 A 股/港股，不 fallback 到美股数据源，直接抛出异常
             else:
                 raise Exception(
                     f"无法获取 A 股数据 {ticker}: DeepAlpha API 调用失败。"
@@ -400,22 +402,36 @@ def search_line_items(
     period: str = "ttm",
     limit: int = 10,
     api_key: str = None,
+    cn_api_key: str = None,
 ) -> list[LineItem]:
     """
     Fetch line items from API.
 
     自动识别 A 股/港股代码，优先使用 DeepAlpha 接口获取财务数据；否则使用美股数据源。
+    
+    Args:
+        ticker: 股票代码
+        line_items: 要获取的财务项目列表
+        end_date: 结束日期
+        period: 报告期类型（ttm/quarterly/annual）
+        limit: 返回的最大记录数
+        api_key: 美股数据源的 API key (FINANCIAL_DATASETS_API_KEY)
+        cn_api_key: A 股/港股数据源的 API key (DEEPALPHA_API_KEY)
     """
     # 如果是 A 股/港股代码，优先使用 DeepAlpha
     if _looks_like_cn_or_hk_ticker(ticker):
         try:
-            cn_line_items = get_cn_all_line_items(ticker, api_key=api_key)
+            # 使用 cn_api_key 作为 DeepAlpha API key，如果没有则使用 api_key，最后从环境变量读取
+            deepalpha_key = cn_api_key or api_key
+            cn_line_items = get_cn_all_line_items(ticker, api_key=deepalpha_key)
             if cn_line_items:
                 return cn_line_items[:limit]
             else:
                 # 如果返回空列表，可能是数据不存在
+                # 对于 A 股/港股，不 fallback 到美股数据源，直接返回空列表
                 print(f"Warning: DeepAlpha returned no line items for {ticker}. "
                       f"Please check if the ticker is valid.")
+                return []  # 直接返回空列表，不 fallback 到美股数据源
         except Exception as e:
             # 区分不同类型的错误
             error_type = type(e).__name__
@@ -434,14 +450,14 @@ def search_line_items(
                     f"无法获取 A 股财务数据 {ticker}: DeepAlpha API 网络请求失败。"
                     f"请检查网络连接和 API 服务状态。错误详情: {error_msg}"
                 )
-            # 其他错误
+            # 其他错误：对于 A 股/港股，不 fallback 到美股数据源，直接抛出异常
             else:
                 raise Exception(
                     f"无法获取 A 股财务数据 {ticker}: DeepAlpha API 调用失败。"
                     f"错误类型: {error_type}, 错误详情: {error_msg}"
                 )
 
-    # Fallback to US data source (original logic)
+    # Fallback to US data source (original logic) - 仅用于美股代码
     headers = {}
     financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
     if financial_api_key:
@@ -509,6 +525,9 @@ def get_cn_all_line_items(
                         for key, value in income_data.items():
                             if key not in merged_data or merged_data[key] is None:
                                 merged_data[key] = value
+                        # 确保 currency 不为 None
+                        if not merged_data.get("currency"):
+                            merged_data["currency"] = "CNY"
                         all_items[i] = LineItem(**merged_data)
                         found = True
                         break
@@ -532,6 +551,9 @@ def get_cn_all_line_items(
                         for key, value in cf_data.items():
                             if key not in merged_data or merged_data[key] is None:
                                 merged_data[key] = value
+                        # 确保 currency 不为 None
+                        if not merged_data.get("currency"):
+                            merged_data["currency"] = "CNY"
                         all_items[i] = LineItem(**merged_data)
                         found = True
                         break
@@ -571,14 +593,35 @@ def get_cn_balance_sheet_line_items(
             continue
 
         # DeepAlpha 返回的数据里已经包含了很多字段，我们全部打平放入 LineItem
+        # 确保 currency 不为 None
+        currency = fields.get("currency") or "CNY"
+        if currency is None:
+            currency = "CNY"
+        # 确保常用字段存在（即使为 None，也保证属性存在）
+        # 这些字段可能在不同报表中，但代码中会访问，所以需要确保属性存在
         item_data: dict[str, any] = {
             "ticker": ticker,
             "report_period": str(report_period),
             "period": "annual",
-            "currency": fields.get("currency", "CNY"),
+            "currency": currency,
+            "net_income": fields.get("net_income"),
+            "depreciation_and_amortization": fields.get("depreciation_and_amortization") or fields.get("depreciation") or fields.get("amortization"),
+            "capital_expenditure": fields.get("capital_expenditure") or fields.get("capex"),
+            "free_cash_flow": fields.get("free_cash_flow") or fields.get("fcf"),
+            "revenue": fields.get("revenue") or fields.get("total_revenue"),
+            "operating_income": fields.get("operating_income") or fields.get("operating_profit"),
+            "ebit": fields.get("ebit"),
+            "ebitda": fields.get("ebitda"),
+            "total_debt": fields.get("total_debt") or fields.get("debt"),
+            "cash_and_equivalents": fields.get("cash_and_equivalents") or fields.get("cash"),
+            "working_capital": fields.get("working_capital"),
+            "interest_expense": fields.get("interest_expense") or fields.get("interest"),
         }
         # 其余字段原样附加，LineItem.extra = "allow" 可以接受
         item_data.update(fields)
+        # 确保 currency 不为 None（update 可能会覆盖 currency 为 None）
+        if not item_data.get("currency"):
+            item_data["currency"] = "CNY"
 
         line_items.append(LineItem(**item_data))
 
@@ -610,11 +653,19 @@ def get_cn_income_statement_line_items(
         if not isinstance(fields, dict):
             continue
 
+        # 确保 currency 不为 None
+        currency = fields.get("currency") or "CNY"
+        if currency is None:
+            currency = "CNY"
+        # 确保常用字段存在（即使为 None，也保证属性存在）
+        net_income = fields.get("net_income")
+        
         item_data: dict[str, any] = {
             "ticker": ticker,
             "report_period": str(report_period),
             "period": "annual",
-            "currency": fields.get("currency", "CNY"),
+            "currency": currency,
+            "net_income": net_income,
         }
         item_data.update(fields)
 
@@ -646,11 +697,29 @@ def get_cn_cash_flow_line_items(
         if not isinstance(fields, dict):
             continue
 
+        # 确保 currency 不为 None
+        currency = fields.get("currency") or "CNY"
+        if currency is None:
+            currency = "CNY"
+        # 确保常用字段存在（即使为 None，也保证属性存在）
+        # 这些字段可能在不同报表中，但代码中会访问，所以需要确保属性存在
         item_data: dict[str, any] = {
             "ticker": ticker,
             "report_period": str(report_period),
             "period": "annual",
-            "currency": fields.get("currency", "CNY"),
+            "currency": currency,
+            "net_income": fields.get("net_income"),
+            "depreciation_and_amortization": fields.get("depreciation_and_amortization") or fields.get("depreciation") or fields.get("amortization"),
+            "capital_expenditure": fields.get("capital_expenditure") or fields.get("capex"),
+            "free_cash_flow": fields.get("free_cash_flow") or fields.get("fcf"),
+            "revenue": fields.get("revenue") or fields.get("total_revenue"),
+            "operating_income": fields.get("operating_income") or fields.get("operating_profit"),
+            "ebit": fields.get("ebit"),
+            "ebitda": fields.get("ebitda"),
+            "total_debt": fields.get("total_debt") or fields.get("debt"),
+            "cash_and_equivalents": fields.get("cash_and_equivalents") or fields.get("cash"),
+            "working_capital": fields.get("working_capital"),
+            "interest_expense": fields.get("interest_expense") or fields.get("interest"),
         }
         item_data.update(fields)
 
@@ -811,7 +880,7 @@ def get_cn_financial_metrics(
                 ticker=ticker,
                 report_period=str(report_period),
                 period=period,
-                currency=fields.get("currency", "CNY"),
+                currency=fields.get("currency") or "CNY",
                 # 市值 / 企业价值
                 market_cap=val_market_cap or fields.get("market_cap") or fields.get("market_value"),
                 enterprise_value=val_ev or fields.get("enterprise_value") or fields.get("ev"),

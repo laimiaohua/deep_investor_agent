@@ -44,6 +44,7 @@ def peter_lynch_agent(state: AgentState, agent_id: str = "peter_lynch_agent"):
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     analysis_data = {}
     lynch_analysis = {}
 
@@ -70,6 +71,7 @@ def peter_lynch_agent(state: AgentState, agent_id: str = "peter_lynch_agent"):
             period="annual",
             limit=5,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Getting market cap")

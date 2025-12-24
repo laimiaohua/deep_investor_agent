@@ -38,6 +38,7 @@ def aswath_damodaran_agent(state: AgentState, agent_id: str = "aswath_damodaran_
     end_date  = data["end_date"]
     tickers   = data["tickers"]
     api_key  = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
 
     analysis_data: dict[str, dict] = {}
     damodaran_signals: dict[str, dict] = {}
@@ -45,7 +46,7 @@ def aswath_damodaran_agent(state: AgentState, agent_id: str = "aswath_damodaran_
     for ticker in tickers:
         # ─── Fetch core data ────────────────────────────────────────────────────
         progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5, api_key=api_key)
+        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5, api_key=api_key, cn_api_key=cn_api_key)
 
         progress.update_status(agent_id, ticker, "Fetching financial line items")
         line_items = search_line_items(
@@ -62,6 +63,7 @@ def aswath_damodaran_agent(state: AgentState, agent_id: str = "aswath_damodaran_
             ],
             end_date,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Getting market cap")

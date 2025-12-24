@@ -15,6 +15,7 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     # Initialize fundamental analysis for each ticker
     fundamental_analysis = {}
 
@@ -28,6 +29,7 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
             period="ttm",
             limit=10,
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
 
         if not financial_metrics:

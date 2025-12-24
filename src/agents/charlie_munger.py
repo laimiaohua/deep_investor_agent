@@ -25,12 +25,13 @@ def charlie_munger_agent(state: AgentState, agent_id: str = "charlie_munger_agen
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
     analysis_data = {}
     munger_analysis = {}
     
     for ticker in tickers:
         progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        metrics = get_financial_metrics(ticker, end_date, period="annual", limit=10, api_key=api_key)  # Munger looks at longer periods
+        metrics = get_financial_metrics(ticker, end_date, period="annual", limit=10, api_key=api_key, cn_api_key=cn_api_key)  # Munger looks at longer periods
         
         progress.update_status(agent_id, ticker, "Gathering financial line items")
         financial_line_items = search_line_items(
@@ -55,6 +56,7 @@ def charlie_munger_agent(state: AgentState, agent_id: str = "charlie_munger_agen
             period="annual",
             limit=10,  # Munger examines long-term trends
             api_key=api_key,
+            cn_api_key=cn_api_key,
         )
         
         progress.update_status(agent_id, ticker, "Getting market cap")
