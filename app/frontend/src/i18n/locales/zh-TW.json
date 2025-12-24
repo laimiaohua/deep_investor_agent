@@ -19,7 +19,8 @@
     "toggleLeftSidebar": "切換左側邊欄 (⌘B)",
     "toggleRightSidebar": "切換右側邊欄 (⌘I)",
     "toggleBottomPanel": "切換底部面板 (⌘J)",
-    "openSettings": "開啟設定 (⌘,)"
+    "openSettings": "開啟設定 (⌘,)",
+    "openGuide": "開啟使用說明"
   },
   "sidebar": {
     "left": {
@@ -54,6 +55,7 @@
   },
   "settings": {
     "title": "設定",
+    "guide": "使用說明",
     "apiKeys": {
       "title": "API 金鑰",
       "description": "設定金融資料和語言模型的 API 端點和身份驗證憑證。變更會自動儲存。",
@@ -238,6 +240,81 @@
       "fengLiu": "在極端情緒和市場誤解時逐步建倉。專注於預期差距和內在改善，願意為長期承受波動。",
       "danBinName": "但斌",
       "danBin": "強調與優秀公司成為'時間的朋友'。偏好品牌消費、醫療保健和具有長期成長潛力的藍籌龍頭企業。"
+    }
+  },
+  "guide": {
+    "title": "使用說明",
+    "description": "了解如何配置和使用深度投資智能體系統",
+    "apiKeys": {
+      "title": "配置 API 金鑰",
+      "description": "配置金融資料和語言模型的 API 金鑰",
+      "financialData": {
+        "title": "金融資料 API 金鑰",
+        "desc": "根據您要分析的股票市場，需要配置相應的 API 金鑰：",
+        "financialDatasets": "Financial Datasets API：用於獲取美股資料（如 AAPL、MSFT、NVDA 等）",
+        "deepalpha": "DeepAlpha API：用於獲取 A 股和港股資料（如 000001、600000、00700 等）",
+        "openSettings": "開啟設定配置"
+      },
+      "languageModels": {
+        "title": "語言模型 API 金鑰",
+        "desc": "系統需要至少配置一個語言模型的 API 金鑰才能進行分析：",
+        "step1": "在設定頁面選擇\"模型\"選項卡",
+        "step2": "選擇一個可用的模型（如 GPT-4、Claude、DeepSeek 等）",
+        "step3": "在\"API 金鑰\"選項卡中配置對應的金鑰（如 OPENAI_API_KEY、ANTHROPIC_API_KEY 等）",
+        "openSettings": "開啟設定配置"
+      }
+    },
+    "defaultFlow": {
+      "title": "使用預設流程進行分析",
+      "description": "快速開始使用系統預設的分析流程",
+      "step1": {
+        "title": "建立新流程",
+        "desc": "在左側邊欄點擊\"建立新流程\"按鈕，系統會自動建立一個包含預設節點的流程"
+      },
+      "step2": {
+        "title": "配置輸入節點",
+        "desc": "點擊\"Portfolio Input\"或\"Stock Input\"節點，輸入要分析的股票代碼（如 AAPL、000001、00700 等）"
+      },
+      "step3": {
+        "title": "執行分析",
+        "desc": "點擊輸入節點的\"執行\"按鈕，系統會自動執行分析流程，並在底部面板顯示分析結果"
+      }
+    },
+    "customFlow": {
+      "title": "基於元件進行流程定制",
+      "description": "根據您的需求自訂分析流程",
+      "step1": {
+        "title": "新增起始節點",
+        "desc": "從右側邊欄的\"起始節點\"組中，拖拽\"Portfolio Input\"或\"Stock Input\"節點到畫布"
+      },
+      "step2": {
+        "title": "新增分析節點",
+        "desc": "從\"分析師\"組中選擇您需要的投資大師智能體（如巴菲特、芒格、段永平等），或從\"群組\"中選擇預設的分析群組（如經典分析、價值投資等）"
+      },
+      "step3": {
+        "title": "連接節點",
+        "desc": "將起始節點的輸出連接到分析節點的輸入，可以連接多個分析節點進行多維度分析"
+      },
+      "step4": {
+        "title": "新增結束節點",
+        "desc": "從\"結束節點\"組中新增\"Portfolio Manager\"節點，連接所有分析節點的輸出，用於生成最終的投資決策"
+      }
+    },
+    "language": {
+      "title": "切換語言版本",
+      "description": "系統支援多種語言，方便不同地區的用戶使用",
+      "step1": {
+        "title": "開啟語言切換器",
+        "desc": "點擊頂部工具欄中的語言圖標（🌐）"
+      },
+      "step2": {
+        "title": "選擇語言",
+        "desc": "從下拉選單中選擇您需要的語言：簡體中文、繁體中文或 English"
+      }
+    },
+    "needHelp": {
+      "title": "需要更多幫助？",
+      "description": "如果您在使用過程中遇到問題，請查看專案 README 檔案或提交 Issue"
     }
   }
 }

@@ -1,10 +1,11 @@
 import { Settings } from '@/components/settings/settings';
 import { FlowTabContent } from '@/components/tabs/flow-tab-content';
+import { Guide } from '@/components/guide/guide';
 import { Flow } from '@/types/flow';
 import { ReactNode, createElement } from 'react';
 
 export interface TabData {
-  type: 'flow' | 'settings';
+  type: 'flow' | 'settings' | 'guide';
   title: string;
   flow?: Flow;
   metadata?: Record<string, any>;
@@ -21,6 +22,9 @@ export class TabService {
       
       case 'settings':
         return createElement(Settings);
+      
+      case 'guide':
+        return createElement(Guide);
       
       default:
         throw new Error(`Unsupported tab type: ${tabData.type}`);
@@ -45,6 +49,15 @@ export class TabService {
     };
   }
 
+  static createGuideTab(title?: string): TabData & { content: ReactNode } {
+    const tabTitle = title || 'Guide';
+    return {
+      type: 'guide',
+      title: tabTitle,
+      content: TabService.createTabContent({ type: 'guide', title: tabTitle }),
+    };
+  }
+
   // Restore tab content for persisted tabs (used when loading from localStorage)
   static restoreTabContent(tabData: TabData): ReactNode {
     return TabService.createTabContent(tabData);
@@ -61,6 +74,9 @@ export class TabService {
       
       case 'settings':
         return TabService.createSettingsTab();
+      
+      case 'guide':
+        return TabService.createGuideTab();
       
       default:
         throw new Error(`Cannot restore unsupported tab type: ${savedTab.type}`);

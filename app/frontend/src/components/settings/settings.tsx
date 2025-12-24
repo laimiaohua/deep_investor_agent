@@ -1,10 +1,12 @@
 import { cn } from '@/lib/utils';
 import { CubeIcon } from '@radix-ui/react-icons';
-import { Key, Palette } from 'lucide-react';
+import { Key, Palette, HelpCircle } from 'lucide-react';
 import { useState } from 'react';
 import { ApiKeysSettings, Models } from './';
 import { ThemeSettings } from './appearance';
 import { useTranslation } from 'react-i18next';
+import { useTabsContext } from '@/contexts/tabs-context';
+import { TabService } from '@/services/tab-service';
 
 interface SettingsProps {
   className?: string;
@@ -20,6 +22,12 @@ interface SettingsNavItem {
 export function Settings({ className }: SettingsProps) {
   const [selectedSection, setSelectedSection] = useState('api');
   const { t } = useTranslation();
+  const { openTab } = useTabsContext();
+
+  const handleOpenGuide = () => {
+    const tabData = TabService.createGuideTab(t('guide.title'));
+    openTab(tabData);
+  };
 
   const navigationItems: SettingsNavItem[] = [
     {
@@ -83,6 +91,16 @@ export function Settings({ className }: SettingsProps) {
                 </button>
               );
             })}
+            {/* Guide Link */}
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              <button
+                onClick={handleOpenGuide}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-md text-sm transition-colors text-primary hover-item"
+              >
+                <HelpCircle className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">{t('settings.guide')}</span>
+              </button>
+            </div>
           </nav>
         </div>
 

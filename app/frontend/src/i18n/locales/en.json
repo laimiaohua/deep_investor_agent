@@ -25,7 +25,8 @@
     "toggleLeftSidebar": "Toggle Left Side Bar (⌘B)",
     "toggleRightSidebar": "Toggle Right Side Bar (⌘I)",
     "toggleBottomPanel": "Toggle Bottom Panel (⌘J)",
-    "openSettings": "Open Settings (⌘,)"
+    "openSettings": "Open Settings (⌘,)",
+    "openGuide": "Open Guide"
   },
   "sidebar": {
     "left": {
@@ -60,6 +61,7 @@
   },
   "settings": {
     "title": "Settings",
+    "guide": "User Guide",
     "apiKeys": {
       "title": "API Keys",
       "description": "Configure API endpoints and authentication credentials for financial data and language models. Changes are automatically saved.",
@@ -290,6 +292,81 @@
     "failedNoMetrics": "Failed: No financial metrics found",
     "failedNotEnoughMetrics": "Failed: Not enough financial metrics",
     "failedInsufficientLineItems": "Failed: Insufficient financial line items"
+  },
+  "guide": {
+    "title": "User Guide",
+    "description": "Learn how to configure and use the Deep Investor Agent system",
+    "apiKeys": {
+      "title": "Configure API Keys",
+      "description": "Configure API keys for financial data and language models",
+      "financialData": {
+        "title": "Financial Data API Keys",
+        "desc": "Depending on the stock market you want to analyze, you need to configure the corresponding API keys:",
+        "financialDatasets": "Financial Datasets API: For US stock market data (e.g., AAPL, MSFT, NVDA, etc.)",
+        "deepalpha": "DeepAlpha API: For A-share and Hong Kong stock market data (e.g., 000001, 600000, 00700, etc.)",
+        "openSettings": "Open Settings"
+      },
+      "languageModels": {
+        "title": "Language Model API Keys",
+        "desc": "The system requires at least one language model API key to perform analysis:",
+        "step1": "Go to Settings and select the 'Models' tab",
+        "step2": "Select an available model (e.g., GPT-4, Claude, DeepSeek, etc.)",
+        "step3": "Configure the corresponding key in the 'API Keys' tab (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)",
+        "openSettings": "Open Settings"
+      }
+    },
+    "defaultFlow": {
+      "title": "Use Default Flow for Analysis",
+      "description": "Quick start with system preset analysis flows",
+      "step1": {
+        "title": "Create New Flow",
+        "desc": "Click the 'Create New Flow' button in the left sidebar, and the system will automatically create a flow with default nodes"
+      },
+      "step2": {
+        "title": "Configure Input Node",
+        "desc": "Click the 'Portfolio Input' or 'Stock Input' node and enter the stock ticker to analyze (e.g., AAPL, 000001, 00700, etc.)"
+      },
+      "step3": {
+        "title": "Run Analysis",
+        "desc": "Click the 'Run' button on the input node, and the system will automatically execute the analysis flow and display results in the bottom panel"
+      }
+    },
+    "customFlow": {
+      "title": "Customize Flow Based on Components",
+      "description": "Customize analysis flows according to your needs",
+      "step1": {
+        "title": "Add Start Node",
+        "desc": "Drag 'Portfolio Input' or 'Stock Input' node from the 'Start Nodes' group in the right sidebar to the canvas"
+      },
+      "step2": {
+        "title": "Add Analysis Nodes",
+        "desc": "Select investment master agents you need from the 'Analysts' group (e.g., Warren Buffett, Charlie Munger, Duan Yongping, etc.), or select preset analysis groups from 'Swarms' (e.g., Data Wizards, Value Investors, etc.)"
+      },
+      "step3": {
+        "title": "Connect Nodes",
+        "desc": "Connect the output of the start node to the input of analysis nodes. You can connect multiple analysis nodes for multi-dimensional analysis"
+      },
+      "step4": {
+        "title": "Add End Node",
+        "desc": "Add a 'Portfolio Manager' node from the 'End Nodes' group, connect outputs from all analysis nodes to generate final investment decisions"
+      }
+    },
+    "language": {
+      "title": "Switch Language Version",
+      "description": "The system supports multiple languages for users in different regions",
+      "step1": {
+        "title": "Open Language Switcher",
+        "desc": "Click the language icon (🌐) in the top toolbar"
+      },
+      "step2": {
+        "title": "Select Language",
+        "desc": "Choose your preferred language from the dropdown: Simplified Chinese, Traditional Chinese, or English"
+      }
+    },
+    "needHelp": {
+      "title": "Need More Help?",
+      "description": "If you encounter any issues while using the system, please check the project README file or submit an Issue"
+    }
   }
 }
 

@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { PanelBottom, PanelLeft, PanelRight, Settings } from 'lucide-react';
+import { PanelBottom, PanelLeft, PanelRight, Settings, HelpCircle } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
+import { useTabsContext } from '@/contexts/tabs-context';
+import { TabService } from '@/services/tab-service';
 
 interface TopBarProps {
   isLeftCollapsed: boolean;
@@ -24,6 +26,20 @@ export function TopBar({
   onSettingsClick,
 }: TopBarProps) {
   const { t } = useTranslation();
+  const { openTab, isTabOpen, getTabByIdentifier, setActiveTab } = useTabsContext();
+
+  const handleGuideClick = () => {
+    if (isTabOpen('guide', 'guide')) {
+      // Tab already open, just focus it
+      const existingTab = getTabByIdentifier('guide', 'guide');
+      if (existingTab) {
+        setActiveTab(existingTab.id);
+      }
+      return;
+    }
+    const tabData = TabService.createGuideTab(t('guide.title'));
+    openTab(tabData);
+  };
 
   return (
     <div className="absolute top-0 right-0 z-40 flex items-center gap-0 py-1 px-2 bg-panel/80">
@@ -77,6 +93,18 @@ export function TopBar({
 
       {/* Language Switcher */}
       <LanguageSwitcher />
+
+      {/* Guide */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleGuideClick}
+        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-ramp-grey-700 transition-colors"
+        aria-label={t('topBar.openGuide')}
+        title={t('topBar.openGuide')}
+      >
+        <HelpCircle size={16} />
+      </Button>
 
       {/* Settings */}
       <Button

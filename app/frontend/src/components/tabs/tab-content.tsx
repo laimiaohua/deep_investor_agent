@@ -26,9 +26,11 @@ export function TabContent({ className }: TabContentProps) {
           metadata: activeTab.metadata,
         });
         
-        // For settings tabs, always use the translated title
+        // For settings and guide tabs, always use the translated title
         const finalTitle = restoredTab.type === 'settings' 
-          ? t('settings.title') 
+          ? t('settings.title')
+          : restoredTab.type === 'guide'
+          ? t('guide.title')
           : restoredTab.title;
         
         // Update the tab with restored content
