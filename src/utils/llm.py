@@ -115,11 +115,11 @@ def call_llm(
     state: AgentState | None = None,
     max_retries: int = 3,
     default_factory=None,
-    enable_streaming: bool = True,
     ticker: str | None = None,
 ) -> BaseModel:
     """
     Makes an LLM call with retry logic, handling both JSON supported and non-JSON supported models.
+    Uses structured output (non-streaming) for all calls.
 
     Args:
         prompt: The prompt to send to the LLM
@@ -128,7 +128,6 @@ def call_llm(
         state: Optional state object to extract agent-specific model configuration
         max_retries: Maximum number of retries (default: 3)
         default_factory: Optional factory function to create default response on failure
-        enable_streaming: Whether to enable streaming output (default: True)
         ticker: Optional ticker symbol for progress updates
 
     Returns:
@@ -198,32 +197,22 @@ def call_llm(
     
     prompt = _inject_language_instruction(prompt, language, detail)
 
-    # Call the LLM with retries
+    # Call the LLM with retries (non-streaming, using structured output)
     for attempt in range(max_retries):
         try:
-            # Check if streaming is enabled and model supports it
-            if enable_streaming and agent_name and ticker:
-                # Use streaming for better UX (do NOT use structured output for streaming)
-                print(f"[LLM] Starting streaming call for {agent_name}, ticker: {ticker}")
-                result = _call_llm_with_streaming(
-                    llm, prompt, pydantic_model, agent_name, ticker, model_info
-                )
-                print(f"[LLM] Streaming call completed for {agent_name}")
-                # 流式调用返回的 result 已经是 pydantic 模型实例，直接返回
-                if isinstance(result, pydantic_model):
-                    return result
-                # 如果不是模型实例，说明解析失败，继续重试逻辑
-                raise ValueError("Streaming call did not return a valid model instance")
+            # Use structured output for all calls (no streaming)
+            if agent_name and ticker:
+                print(f"[LLM] Calling LLM for {agent_name}, ticker: {ticker}")
             else:
-                # Use structured output for non-streaming calls
-                print(f"[LLM] Using non-streaming call (streaming: {enable_streaming}, agent: {agent_name}, ticker: {ticker})")
-                llm_with_structure = llm
-                if not (model_info and not model_info.has_json_mode()):
-                    llm_with_structure = llm.with_structured_output(
-                        pydantic_model,
-                        method="json_mode",
-                    )
-                result = llm_with_structure.invoke(prompt)
+                print(f"[LLM] Calling LLM")
+            
+            llm_with_structure = llm
+            if not (model_info and not model_info.has_json_mode()):
+                llm_with_structure = llm.with_structured_output(
+                    pydantic_model,
+                    method="json_mode",
+                )
+            result = llm_with_structure.invoke(prompt)
 
             # For non-JSON support models, we need to extract and parse the JSON manually
             # 注意：这里 result 可能是模型实例（structured output）或消息对象（普通调用）
@@ -348,9 +337,9 @@ def _call_llm_with_streaming(
             if not content:
                 continue
             
-                full_content += content
+            full_content += content
             # 通过 progress 发送流式更新（不输出日志）
-                progress.update_streaming_content(agent_name, ticker, content)
+            progress.update_streaming_content(agent_name, ticker, content)
         
         # 流式输出完成，解析完整内容
         if model_info and not model_info.has_json_mode():

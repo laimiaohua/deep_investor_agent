@@ -668,6 +668,9 @@ def get_cn_income_statement_line_items(
             "net_income": net_income,
         }
         item_data.update(fields)
+        # 确保 currency 不为 None（update 可能会覆盖 currency 为 None）
+        if not item_data.get("currency"):
+            item_data["currency"] = "CNY"
 
         line_items.append(LineItem(**item_data))
 
@@ -722,6 +725,9 @@ def get_cn_cash_flow_line_items(
             "interest_expense": fields.get("interest_expense") or fields.get("interest"),
         }
         item_data.update(fields)
+        # 确保 currency 不为 None（update 可能会覆盖 currency 为 None）
+        if not item_data.get("currency"):
+            item_data["currency"] = "CNY"
 
         line_items.append(LineItem(**item_data))
 
@@ -874,6 +880,23 @@ def get_cn_financial_metrics(
         val_div_yield = valuation.get("dividrt_ttm") or valuation.get("dividrt_lyr")
         val_ev = valuation.get("entpv_wth") or valuation.get("entpv_non")
 
+        # 辅助函数：将百分比字段从百分比形式转换为小数形式
+        # DeepAlpha API 返回的百分比字段可能是百分比形式（如 15.5 表示 15.5%）
+        # 但代码中期望的是小数形式（如 0.155 表示 15.5%）
+        def convert_percentage(value):
+            """如果值大于 1 或小于 -1，说明是百分比形式，需要除以 100"""
+            if value is None:
+                return None
+            try:
+                num_value = float(value)
+                # 如果绝对值大于 1，说明是百分比形式，除以 100
+                if abs(num_value) > 1.0:
+                    return num_value / 100.0
+                # 否则已经是小数形式，直接返回
+                return num_value
+            except (ValueError, TypeError):
+                return None
+        
         try:
             # 字段映射：DeepAlpha 的字段名可能和 FinancialMetrics 不完全一致，需要适配
             metric = FinancialMetrics(
@@ -884,20 +907,21 @@ def get_cn_financial_metrics(
                 # 市值 / 企业价值
                 market_cap=val_market_cap or fields.get("market_cap") or fields.get("market_value"),
                 enterprise_value=val_ev or fields.get("enterprise_value") or fields.get("ev"),
-                # 估值倍数
+                # 估值倍数（这些不是百分比，不需要转换）
                 price_to_earnings_ratio=val_pe_ttm or val_pe_lyr or fields.get("pe") or fields.get("pe_ratio"),
                 price_to_book_ratio=val_pb or fields.get("pb") or fields.get("pb_ratio"),
                 price_to_sales_ratio=val_ps_ttm or val_ps or fields.get("ps") or fields.get("ps_ratio"),
                 enterprise_value_to_ebitda_ratio=fields.get("ev_ebitda"),
                 enterprise_value_to_revenue_ratio=fields.get("ev_revenue"),
-                free_cash_flow_yield=fields.get("fcf_yield") or val_div_yield,
+                free_cash_flow_yield=convert_percentage(fields.get("fcf_yield") or val_div_yield),
                 peg_ratio=fields.get("peg") or valuation.get("peg"),
-                gross_margin=fields.get("gross_margin") or fields.get("gross_profit_rate"),
-                operating_margin=fields.get("operating_margin") or fields.get("operating_profit_rate"),
-                net_margin=fields.get("net_margin") or fields.get("net_profit_rate"),
-                return_on_equity=fields.get("roe"),
-                return_on_assets=fields.get("roa"),
-                return_on_invested_capital=fields.get("roic"),
+                # 百分比字段：需要转换为小数形式
+                gross_margin=convert_percentage(fields.get("gross_margin") or fields.get("gross_profit_rate")),
+                operating_margin=convert_percentage(fields.get("operating_margin") or fields.get("operating_profit_rate")),
+                net_margin=convert_percentage(fields.get("net_margin") or fields.get("net_profit_rate")),
+                return_on_equity=convert_percentage(fields.get("roe")),
+                return_on_assets=convert_percentage(fields.get("roa")),
+                return_on_invested_capital=convert_percentage(fields.get("roic")),
                 asset_turnover=fields.get("asset_turnover"),
                 inventory_turnover=fields.get("inventory_turnover"),
                 receivables_turnover=fields.get("receivables_turnover"),
@@ -911,14 +935,15 @@ def get_cn_financial_metrics(
                 debt_to_equity=fields.get("debt_to_equity") or fields.get("d_e"),
                 debt_to_assets=fields.get("debt_to_assets") or fields.get("d_a"),
                 interest_coverage=fields.get("interest_coverage"),
-                revenue_growth=fields.get("revenue_growth"),
-                earnings_growth=fields.get("earnings_growth") or fields.get("net_profit_growth"),
-                book_value_growth=fields.get("book_value_growth"),
-                earnings_per_share_growth=fields.get("eps_growth"),
-                free_cash_flow_growth=fields.get("fcf_growth"),
-                operating_income_growth=fields.get("operating_income_growth"),
-                ebitda_growth=fields.get("ebitda_growth"),
-                payout_ratio=fields.get("payout_ratio") or fields.get("dividend_payout_ratio"),
+                # 增长率字段：也是百分比，需要转换
+                revenue_growth=convert_percentage(fields.get("revenue_growth")),
+                earnings_growth=convert_percentage(fields.get("earnings_growth") or fields.get("net_profit_growth")),
+                book_value_growth=convert_percentage(fields.get("book_value_growth")),
+                earnings_per_share_growth=convert_percentage(fields.get("eps_growth")),
+                free_cash_flow_growth=convert_percentage(fields.get("fcf_growth")),
+                operating_income_growth=convert_percentage(fields.get("operating_income_growth")),
+                ebitda_growth=convert_percentage(fields.get("ebitda_growth")),
+                payout_ratio=convert_percentage(fields.get("payout_ratio") or fields.get("dividend_payout_ratio")),
                 earnings_per_share=fields.get("eps") or fields.get("earnings_per_share"),
                 book_value_per_share=fields.get("bvps") or fields.get("book_value_per_share"),
                 free_cash_flow_per_share=fields.get("fcf_per_share"),

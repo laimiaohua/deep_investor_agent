@@ -292,6 +292,12 @@ def _query_with_hk_fallback(
             try:
                 resp = client.query(function_name, security_code=symbol, **params)
                 
+                # 确保 resp 是字典类型
+                if not isinstance(resp, dict):
+                    print(f"Warning: {function_name} returned non-dict response for {symbol}: type={type(resp)}, value={str(resp)[:200]}")
+                    last_error = RuntimeError(f"DeepAlpha API returned non-dict response for {function_name} (symbol={symbol}): {type(resp)}")
+                    continue
+                
                 # 检查响应中是否包含错误信息（即使code=200，也可能包含错误）
                 # 例如：{"code": 200, "message": "success", "data": {"error": "不支持的功能类型"}}
                 if isinstance(resp.get("data"), dict) and "error" in resp.get("data", {}):
@@ -368,6 +374,11 @@ def _query_with_hk_fallback(
         
         resp = client.query(cn_function, **query_params)
         
+        # 确保 resp 是字典类型
+        if not isinstance(resp, dict):
+            print(f"ERROR: _query_with_hk_fallback received non-dict response for {cn_function} (symbol={symbol}): type={type(resp)}, value={str(resp)[:200]}")
+            raise RuntimeError(f"DeepAlpha API returned non-dict response for {cn_function} (symbol={symbol}): {type(resp)}")
+        
         # 检查响应中是否包含错误信息（即使code=200，也可能包含错误）
         if isinstance(resp.get("data"), dict) and "error" in resp.get("data", {}):
             error_msg = resp["data"].get("error", "Unknown error")
@@ -398,8 +409,23 @@ def get_balance_sheet_raw(symbol: str, client: DeepAlphaClient | None = None) ->
     # 根据你提供的示例结构：
     # {"code":200,"message":"success","data":{"data":{"data":{"20250930": {...}, ...}},"user_id":...,"api_user_id":...},...}
     try:
-        inner_data = resp["data"]["data"]["data"]
-    except (KeyError, TypeError) as exc:
+        # 确保每一级都是字典类型
+        if not isinstance(resp, dict):
+            print(f"ERROR: BALANCE_SHEET response is not a dict, type: {type(resp)}")
+            return {}
+        
+        data_level1 = resp.get("data", {})
+        if not isinstance(data_level1, dict):
+            print(f"ERROR: resp['data'] is not a dict for BALANCE_SHEET, type: {type(data_level1)}, value: {str(data_level1)[:200]}")
+            return {}
+        
+        data_level2 = data_level1.get("data", {})
+        if not isinstance(data_level2, dict):
+            print(f"ERROR: resp['data']['data'] is not a dict for BALANCE_SHEET, type: {type(data_level2)}, value: {str(data_level2)[:200]}")
+            return {}
+        
+        inner_data = data_level2.get("data", {})
+    except (KeyError, TypeError, AttributeError) as exc:
         # 添加详细的调试信息
         print(f"ERROR: Unexpected BALANCE_SHEET response structure for {symbol}")
         print(f"  Response keys: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
@@ -480,8 +506,23 @@ def get_income_statement_raw(symbol: str, client: DeepAlphaClient | None = None)
     resp = _query_with_hk_fallback(client, "INCOME_STATEMENT", symbol)
 
     try:
-        inner_data = resp["data"]["data"]["data"]
-    except (KeyError, TypeError) as exc:
+        # 确保每一级都是字典类型
+        if not isinstance(resp, dict):
+            print(f"ERROR: INCOME_STATEMENT response is not a dict, type: {type(resp)}")
+            return {}
+        
+        data_level1 = resp.get("data", {})
+        if not isinstance(data_level1, dict):
+            print(f"ERROR: resp['data'] is not a dict for INCOME_STATEMENT, type: {type(data_level1)}, value: {str(data_level1)[:200]}")
+            return {}
+        
+        data_level2 = data_level1.get("data", {})
+        if not isinstance(data_level2, dict):
+            print(f"ERROR: resp['data']['data'] is not a dict for INCOME_STATEMENT, type: {type(data_level2)}, value: {str(data_level2)[:200]}")
+            return {}
+        
+        inner_data = data_level2.get("data", {})
+    except (KeyError, TypeError, AttributeError) as exc:
         # 添加详细的调试信息
         print(f"ERROR: Unexpected INCOME_STATEMENT response structure for {symbol}")
         print(f"  Response keys: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
@@ -513,8 +554,23 @@ def get_cash_flow_raw(symbol: str, client: DeepAlphaClient | None = None) -> Map
     resp = _query_with_hk_fallback(client, "CASH_FLOW", symbol)
 
     try:
-        inner_data = resp["data"]["data"]["data"]
-    except (KeyError, TypeError) as exc:
+        # 确保每一级都是字典类型
+        if not isinstance(resp, dict):
+            print(f"ERROR: CASH_FLOW response is not a dict, type: {type(resp)}")
+            return {}
+        
+        data_level1 = resp.get("data", {})
+        if not isinstance(data_level1, dict):
+            print(f"ERROR: resp['data'] is not a dict for CASH_FLOW, type: {type(data_level1)}, value: {str(data_level1)[:200]}")
+            return {}
+        
+        data_level2 = data_level1.get("data", {})
+        if not isinstance(data_level2, dict):
+            print(f"ERROR: resp['data']['data'] is not a dict for CASH_FLOW, type: {type(data_level2)}, value: {str(data_level2)[:200]}")
+            return {}
+        
+        inner_data = data_level2.get("data", {})
+    except (KeyError, TypeError, AttributeError) as exc:
         # 添加详细的调试信息
         print(f"ERROR: Unexpected CASH_FLOW response structure for {symbol}")
         print(f"  Response keys: {list(resp.keys()) if isinstance(resp, dict) else 'Not a dict'}")
@@ -565,8 +621,21 @@ def get_daily_price_raw(
 
     try:
         # 根据 DeepAlpha 文档，行情数据可能在 data.data.data 或 data.data 中
-        inner_data = resp.get("data", {}).get("data", {}).get("data") or resp.get("data", {}).get("data")
-    except (KeyError, TypeError, AttributeError):
+        # 需要确保每一级都是字典类型
+        data_level1 = resp.get("data", {})
+        if not isinstance(data_level1, dict):
+            print(f"Warning: resp['data'] is not a dict, type: {type(data_level1)}, value: {data_level1}")
+            return []
+        
+        data_level2 = data_level1.get("data", {})
+        if not isinstance(data_level2, dict):
+            print(f"Warning: resp['data']['data'] is not a dict, type: {type(data_level2)}, value: {data_level2}")
+            return []
+        
+        # 尝试获取 data.data.data，如果不存在则使用 data.data
+        inner_data = data_level2.get("data") or data_level2
+    except (KeyError, TypeError, AttributeError) as e:
+        print(f"Warning: Error extracting inner_data from DAILY_PRICE response: {e}")
         inner_data = None
 
     if inner_data is None:
@@ -574,10 +643,25 @@ def get_daily_price_raw(
 
     # 如果是字典格式（按日期索引），转换为列表
     if isinstance(inner_data, dict):
-        return list(inner_data.values())
+        # 确保values中都是字典，过滤掉非字典元素
+        result = []
+        for key, value in inner_data.items():
+            if isinstance(value, dict):
+                result.append(value)
+            else:
+                print(f"Warning: Skipping non-dict value in DAILY_PRICE data, key={key}, type={type(value)}, value={str(value)[:100]}")
+        return result
     elif isinstance(inner_data, list):
-        return inner_data
+        # 确保列表中都是字典，过滤掉非字典元素
+        result = []
+        for idx, item in enumerate(inner_data):
+            if isinstance(item, dict):
+                result.append(item)
+            else:
+                print(f"Warning: Skipping non-dict item in DAILY_PRICE list, index={idx}, type={type(item)}, value={str(item)[:100]}")
+        return result
     else:
+        print(f"Warning: inner_data is neither dict nor list, type={type(inner_data)}")
         return []
 
 
@@ -615,8 +699,23 @@ def get_financial_indicators_raw(symbol: str, client: DeepAlphaClient | None = N
         raise RuntimeError(f"DeepAlpha API returned error for {function_name} (symbol={symbol}): {error_msg}")
 
     try:
-        inner_data = resp["data"]["data"]["data"]
-    except (KeyError, TypeError) as exc:
+        # 确保每一级都是字典类型
+        if not isinstance(resp, dict):
+            print(f"ERROR: FINANALYSIS_MAIN response is not a dict, type: {type(resp)}")
+            return {}
+        
+        data_level1 = resp.get("data", {})
+        if not isinstance(data_level1, dict):
+            print(f"ERROR: resp['data'] is not a dict for FINANALYSIS_MAIN, type: {type(data_level1)}, value: {str(data_level1)[:200]}")
+            return {}
+        
+        data_level2 = data_level1.get("data", {})
+        if not isinstance(data_level2, dict):
+            print(f"ERROR: resp['data']['data'] is not a dict for FINANALYSIS_MAIN, type: {type(data_level2)}, value: {str(data_level2)[:200]}")
+            return {}
+        
+        inner_data = data_level2.get("data", {})
+    except (KeyError, TypeError, AttributeError) as exc:
         # 打印响应结构用于调试
         function_name = _get_function_name("FINANALYSIS_MAIN", symbol)
         print(f"ERROR: Unexpected {function_name} response structure for {symbol}")

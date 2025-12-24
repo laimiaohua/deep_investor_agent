@@ -156,7 +156,6 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
                 analysis_data=analysis_data[ticker],
                 state=state,
                 agent_id=agent_id,
-                enable_streaming=True,  # Enable streaming for real-time progress
             )
 
             # Store analysis in consistent format with other agents
@@ -789,7 +788,6 @@ def generate_buffett_output(
         analysis_data: dict[str, any],
         state: AgentState,
         agent_id: str = "warren_buffett_agent",
-        enable_streaming: bool = False,
 ) -> WarrenBuffettSignal:
     """Get investment decision from LLM with a compact prompt."""
 
@@ -872,6 +870,5 @@ def generate_buffett_output(
         agent_name=agent_id,
         state=state,
         default_factory=create_default_warren_buffett_signal,
-        enable_streaming=enable_streaming,
         ticker=ticker,
     )
