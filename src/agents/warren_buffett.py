@@ -791,6 +791,10 @@ def generate_buffett_output(
 ) -> WarrenBuffettSignal:
     """Get investment decision from LLM with a compact prompt."""
 
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
     # --- Build compact facts here ---
     facts = {
         "score": analysis_data.get("score"),
@@ -806,52 +810,100 @@ def generate_buffett_output(
         "margin_of_safety": analysis_data.get("margin_of_safety"),
     }
 
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是沃伦·巴菲特。仅根据提供的事实决定看涨、看跌或中性。\n"
+            "\n"
+            "决策检查清单：\n"
+            "- 能力圈\n"
+            "- 竞争护城河\n"
+            "- 管理质量\n"
+            "- 财务实力\n"
+            "- 估值与内在价值\n"
+            "- 长期前景\n"
+            "\n"
+            "信号规则：\n"
+            "- 看涨：优秀企业且安全边际 > 0。\n"
+            "- 看跌：糟糕的企业或明显高估。\n"
+            "- 中性：好企业但安全边际 <= 0，或证据混杂。\n"
+            "\n"
+            "信心等级：\n"
+            "- 90-100%：能力圈内卓越的企业，价格有吸引力\n"
+            "- 70-89%：有良好护城河的好企业，估值合理\n"
+            "- 50-69%：信号混杂，需要更多信息或更好的价格\n"
+            "- 30-49%：超出我的专业范围或基本面令人担忧\n"
+            "- 10-29%：糟糕的企业或明显高估\n"
+            "\n"
+            "你的推理必须详细全面（200-500 字符），包括：\n"
+            "1. 企业质量评估：护城河、竞争优势、管理质量\n"
+            "2. 财务指标：ROE、利润率、债务水平、现金流\n"
+            "3. 估值分析：内在价值估算、安全边际\n"
+            "4. 能力圈：这个企业是否在我的专业范围内\n"
+            "5. 风险因素：可能出现的问题\n"
+            "6. 结论：明确的投资建议和理由\n"
+            "不要编造数据。只返回 JSON。"
+        )
+        human_prompt = (
+            "股票代码: {ticker}\n"
+            "事实:\n{facts}\n\n"
+            "返回格式:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "简短的中文说明"\n'
+            "}}"
+        )
+        default_reasoning = "数据不足"
+    else:
+        system_prompt = (
+            "You are Warren Buffett. Decide bullish, bearish, or neutral using only the provided facts.\n"
+            "\n"
+            "Checklist for decision:\n"
+            "- Circle of competence\n"
+            "- Competitive moat\n"
+            "- Management quality\n"
+            "- Financial strength\n"
+            "- Valuation vs intrinsic value\n"
+            "- Long-term prospects\n"
+            "\n"
+            "Signal rules:\n"
+            "- Bullish: strong business AND margin_of_safety > 0.\n"
+            "- Bearish: poor business OR clearly overvalued.\n"
+            "- Neutral: good business but margin_of_safety <= 0, or mixed evidence.\n"
+            "\n"
+            "Confidence scale:\n"
+            "- 90-100%: Exceptional business within my circle, trading at attractive price\n"
+            "- 70-89%: Good business with decent moat, fair valuation\n"
+            "- 50-69%: Mixed signals, would need more information or better price\n"
+            "- 30-49%: Outside my expertise or concerning fundamentals\n"
+            "- 10-29%: Poor business or significantly overvalued\n"
+            "\n"
+            "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
+            "1. Business quality assessment: moat, competitive advantages, management quality\n"
+            "2. Financial metrics: ROE, margins, debt levels, cash generation\n"
+            "3. Valuation analysis: intrinsic value estimate, margin of safety\n"
+            "4. Circle of competence: whether this business is within your expertise\n"
+            "5. Risk factors: what could go wrong\n"
+            "6. Conclusion: clear investment recommendation with rationale\n"
+            "Do not invent data. Return JSON only."
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n"
+            "Facts:\n{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification"\n'
+            "}}"
+        )
+        default_reasoning = "Insufficient data"
+
     template = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                "You are Warren Buffett. Decide bullish, bearish, or neutral using only the provided facts.\n"
-                "\n"
-                "Checklist for decision:\n"
-                "- Circle of competence\n"
-                "- Competitive moat\n"
-                "- Management quality\n"
-                "- Financial strength\n"
-                "- Valuation vs intrinsic value\n"
-                "- Long-term prospects\n"
-                "\n"
-                "Signal rules:\n"
-                "- Bullish: strong business AND margin_of_safety > 0.\n"
-                "- Bearish: poor business OR clearly overvalued.\n"
-                "- Neutral: good business but margin_of_safety <= 0, or mixed evidence.\n"
-                "\n"
-                "Confidence scale:\n"
-                "- 90-100%: Exceptional business within my circle, trading at attractive price\n"
-                "- 70-89%: Good business with decent moat, fair valuation\n"
-                "- 50-69%: Mixed signals, would need more information or better price\n"
-                "- 30-49%: Outside my expertise or concerning fundamentals\n"
-                "- 10-29%: Poor business or significantly overvalued\n"
-                "\n"
-                "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
-                "1. Business quality assessment: moat, competitive advantages, management quality\n"
-                "2. Financial metrics: ROE, margins, debt levels, cash generation\n"
-                "3. Valuation analysis: intrinsic value estimate, margin of safety\n"
-                "4. Circle of competence: whether this business is within your expertise\n"
-                "5. Risk factors: what could go wrong\n"
-                "6. Conclusion: clear investment recommendation with rationale\n"
-                "Do not invent data. Return JSON only."
-            ),
-            (
-                "human",
-                "Ticker: {ticker}\n"
-                "Facts:\n{facts}\n\n"
-                "Return exactly:\n"
-                "{{\n"
-                '  "signal": "bullish" | "bearish" | "neutral",\n'
-                '  "confidence": int,\n'
-                '  "reasoning": "short justification"\n'
-                "}}"
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -862,7 +914,7 @@ def generate_buffett_output(
 
     # Default fallback uses int confidence to match schema and avoid parse retries
     def create_default_warren_buffett_signal():
-        return WarrenBuffettSignal(signal="neutral", confidence=50, reasoning="Insufficient data")
+        return WarrenBuffettSignal(signal="neutral", confidence=50, reasoning=default_reasoning)
 
     return call_llm(
         prompt=prompt,

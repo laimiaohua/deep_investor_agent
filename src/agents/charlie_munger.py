@@ -823,28 +823,65 @@ def generate_munger_output(
     agent_id: str,
     confidence_hint: int,
 ) -> CharlieMungerSignal:
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
     facts_bundle = make_munger_facts_bundle(analysis_data)
+    
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是查理·芒格。仅根据事实决定看涨、看跌或中性。\n"
+            "你的推理必须详细全面（200-500 字符），包括：\n"
+            "1. 应用的思维模型：你使用哪些框架来分析这个企业\n"
+            "2. 企业质量：护城河、竞争地位、管理质量\n"
+            "3. 财务分析：关键指标、趋势和警示信号\n"
+            "4. 估值视角：价格是否合理\n"
+            "5. 逆向思维：可能出现的问题，有哪些风险\n"
+            "6. 结论：明确的投资建议和理由\n"
+            "只返回 JSON。使用提供的信心值，不要更改。"
+        )
+        human_prompt = (
+            "股票代码: {ticker}\n"
+            "事实:\n{facts}\n"
+            "信心: {confidence}\n"
+            "返回格式:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            f'  "confidence": {confidence_hint},\n'
+            '  "reasoning": "简短的中文说明"\n'
+            "}}"
+        )
+        default_reasoning = "数据不足"
+    else:
+        system_prompt = (
+            "You are Charlie Munger. Decide bullish, bearish, or neutral using only the facts.\n"
+            "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
+            "1. Mental models applied: which frameworks you're using to analyze this business\n"
+            "2. Business quality: moat, competitive position, management quality\n"
+            "3. Financial analysis: key metrics, trends, and red flags\n"
+            "4. Valuation perspective: whether the price makes sense\n"
+            "5. Inversion thinking: what could go wrong, what are the risks\n"
+            "6. Conclusion: clear investment recommendation with rationale\n"
+            "Return JSON only. Use the provided confidence exactly; do not change it."
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n"
+            "Facts:\n{facts}\n"
+            "Confidence: {confidence}\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            f'  "confidence": {confidence_hint},\n'
+            '  "reasoning": "short justification"\n'
+            "}}"
+        )
+        default_reasoning = "Insufficient data"
+
     template = ChatPromptTemplate.from_messages([
-        ("system",
-         "You are Charlie Munger. Decide bullish, bearish, or neutral using only the facts.\n"
-         "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
-         "1. Mental models applied: which frameworks you're using to analyze this business\n"
-         "2. Business quality: moat, competitive position, management quality\n"
-         "3. Financial analysis: key metrics, trends, and red flags\n"
-         "4. Valuation perspective: whether the price makes sense\n"
-         "5. Inversion thinking: what could go wrong, what are the risks\n"
-         "6. Conclusion: clear investment recommendation with rationale\n"
-         "Return JSON only. Use the provided confidence exactly; do not change it."),
-        ("human",
-         "Ticker: {ticker}\n"
-         "Facts:\n{facts}\n"
-         "Confidence: {confidence}\n"
-         "Return exactly:\n"
-         "{{\n"  # escaped {
-         '  "signal": "bullish" | "bearish" | "neutral",\n'
-         f'  "confidence": {confidence_hint},\n'
-         '  "reasoning": "short justification"\n'
-         "}}")  # escaped }
+        ("system", system_prompt),
+        ("human", human_prompt),
     ])
 
     prompt = template.invoke({
@@ -854,7 +891,7 @@ def generate_munger_output(
     })
 
     def _default():
-        return CharlieMungerSignal(signal="neutral", confidence=confidence_hint, reasoning="Insufficient data")
+        return CharlieMungerSignal(signal="neutral", confidence=confidence_hint, reasoning=default_reasoning)
 
     return call_llm(
         prompt=prompt,

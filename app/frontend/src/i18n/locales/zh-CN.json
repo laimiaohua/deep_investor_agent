@@ -39,7 +39,35 @@
       "recentFlows": "最近流程",
       "templates": "模板",
       "saveFlow": "保存 \"{{name}}\"",
-      "createNewFlow": "创建新流程"
+      "createNewFlow": "创建新流程",
+      "createDialog": {
+        "title": "创建新流程",
+        "description": "创建一个带有自定义名称和描述的新流程。",
+        "nameLabel": "名称",
+        "namePlaceholder": "输入流程名称",
+        "descriptionLabel": "描述",
+        "descriptionPlaceholder": "输入流程描述（可选）",
+        "cancel": "取消",
+        "create": "创建流程",
+        "creating": "创建中...",
+        "nameRequired": "流程名称是必需的",
+        "createFailed": "创建流程失败",
+        "createdSuccess": "\"{{name}}\" 已创建！"
+      },
+      "editDialog": {
+        "title": "编辑流程",
+        "description": "更新流程的名称和描述。",
+        "nameLabel": "名称",
+        "namePlaceholder": "输入流程名称",
+        "descriptionLabel": "描述",
+        "descriptionPlaceholder": "输入流程描述（可选）",
+        "cancel": "取消",
+        "save": "保存更改",
+        "saving": "保存中...",
+        "nameRequired": "流程名称是必需的",
+        "updateFailed": "更新流程失败",
+        "updatedSuccess": "\"{{name}}\" 已更新！"
+      }
     },
     "right": {
       "title": "组件",

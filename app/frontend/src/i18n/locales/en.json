@@ -39,7 +39,35 @@
       "recentFlows": "Recent Flows",
       "templates": "Templates",
       "saveFlow": "Save \"{{name}}\"",
-      "createNewFlow": "Create new flow"
+      "createNewFlow": "Create new flow",
+      "createDialog": {
+        "title": "Create New Flow",
+        "description": "Create a new flow with a custom name and description.",
+        "nameLabel": "Name",
+        "namePlaceholder": "Enter flow name",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Enter flow description (optional)",
+        "cancel": "Cancel",
+        "create": "Create Flow",
+        "creating": "Creating...",
+        "nameRequired": "Flow name is required",
+        "createFailed": "Failed to create flow",
+        "createdSuccess": "\"{{name}}\" created!"
+      },
+      "editDialog": {
+        "title": "Edit Flow",
+        "description": "Update the name and description for your flow.",
+        "nameLabel": "Name",
+        "namePlaceholder": "Enter flow name",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Enter flow description (optional)",
+        "cancel": "Cancel",
+        "save": "Save Changes",
+        "saving": "Saving...",
+        "nameRequired": "Flow name is required",
+        "updateFailed": "Failed to update flow",
+        "updatedSuccess": "\"{{name}}\" updated!"
+      }
     },
     "right": {
       "title": "Components",
