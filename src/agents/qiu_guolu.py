@@ -156,46 +156,86 @@ def _generate_chinese_master_output(
 ) -> ChineseMasterSignal:
     """让 LLM 按指定中国投资大师的风格，给出多空观点。"""
 
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
     checklist_text = "\n".join(f"- {item}" for item in checklist)
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            f"You are {persona_name} ({persona_label}), a renowned Chinese value & macro-cycle investor.\n"
+            f"Investing style: {investing_style}\n\n"
+            "你要像邱国鹭写路演一样，结合行业周期和公司质量来判断。\n"
+            "只根据提供的数据做判断，不要胡编历史或宏观数据。\n"
+            "请按下面清单思考：\n"
+            f"{checklist_text}\n\n"
+            "输出规则：\n"
+            "- bullish：当前定价明显偏悲观、赔率较高\n"
+            "- bearish：估值偏贵或周期高位，性价比一般甚至偏差\n"
+            "- neutral：尚可但缺乏非常好的赔率\n"
+            "confidence 用 0-100 的整数。\n"
+            "reasoning 需要详细完整（200-500 字符），必须包含：\n"
+            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+            "  2. 行业周期：当前处于行业周期的什么位置，未来趋势如何\n"
+            "  3. 公司质量：业务模式、竞争优势、管理团队等\n"
+            "  4. 赔率分析：当前定价是否合理，风险收益比如何\n"
+            "  5. 风险提示：需要注意的风险点\n"
+            "  6. 结论：明确的投资建议和理由\n"
+            "只返回 JSON。"
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n\n"
+            "Facts (do not invent new data):\n"
+            "{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification in Chinese"\n'
+            "}}"
+        )
+        default_reasoning = "对周期和估值缺少足够把握，先控制仓位、耐心观察。"
+    else:
+        system_prompt = (
+            f"You are {persona_name} ({persona_label}), a renowned Chinese value & macro-cycle investor.\n"
+            f"Investing style: {investing_style}\n\n"
+            "You should judge by combining industry cycles and company quality, like Qiu Guolu writes roadshows.\n"
+            "Only make judgments based on the provided data, do not fabricate historical or macroeconomic data.\n"
+            "Please think using the following checklist:\n"
+            f"{checklist_text}\n\n"
+            "Output rules:\n"
+            "- bullish: Current pricing is clearly pessimistic, odds are favorable\n"
+            "- bearish: Valuation is expensive or at cycle high, cost-effectiveness is average or poor\n"
+            "- neutral: Acceptable but lacks very good odds\n"
+            "confidence should be an integer from 0-100.\n"
+            "reasoning should be detailed and complete (200-500 characters), must include:\n"
+            "  1. Core analysis basis: Specific data indicators, financial performance, valuation levels, etc.\n"
+            "  2. Industry cycle: What position is the industry cycle currently in, what are future trends\n"
+            "  3. Company quality: Business model, competitive advantages, management team, etc.\n"
+            "  4. Odds analysis: Whether current pricing is reasonable, what is the risk-reward ratio\n"
+            "  5. Risk warning: Risk points to pay attention to\n"
+            "  6. Conclusion: Clear investment recommendation and reasoning\n"
+            "Return JSON only."
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n\n"
+            "Facts (do not invent new data):\n"
+            "{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification in English"\n'
+            "}}"
+        )
+        default_reasoning = "Lack sufficient confidence in cycle and valuation, control position size and observe patiently."
 
     template = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                (
-                    f"You are {persona_name} ({persona_label}), a renowned Chinese value & macro-cycle investor.\n"
-                    f"Investing style: {investing_style}\n\n"
-                    "你要像邱国鹭写路演一样，结合行业周期和公司质量来判断。\n"
-                    "只根据提供的数据做判断，不要胡编历史或宏观数据。\n"
-                    "请按下面清单思考：\n"
-                    f"{checklist_text}\n\n"
-                    "输出规则：\n"
-                    "- bullish：当前定价明显偏悲观、赔率较高\n"
-                    "- bearish：估值偏贵或周期高位，性价比一般甚至偏差\n"
-                    "- neutral：尚可但缺乏非常好的赔率\n"
-                    "confidence 用 0-100 的整数。\n"
-                    "reasoning 需要详细完整（200-500 字符），必须包含：\n"
-                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-                    "  2. 行业周期：当前处于行业周期的什么位置，未来趋势如何\n"
-                    "  3. 公司质量：业务模式、竞争优势、管理团队等\n"
-                    "  4. 赔率分析：当前定价是否合理，风险收益比如何\n"
-                    "  5. 风险提示：需要注意的风险点\n"
-                    "  6. 结论：明确的投资建议和理由\n"
-                    "只返回 JSON。"
-                ),
-            ),
-            (
-                "human",
-                "Ticker: {ticker}\n\n"
-                "Facts (do not invent new data):\n"
-                "{facts}\n\n"
-                "Return exactly:\n"
-                "{{\n"
-                '  "signal": "bullish" | "bearish" | "neutral",\n'
-                '  "confidence": int,\n'
-                '  "reasoning": "short justification in Chinese"\n'
-                "}}",
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -210,7 +250,7 @@ def _generate_chinese_master_output(
         return ChineseMasterSignal(
             signal="neutral",
             confidence=50,
-            reasoning="对周期和估值缺少足够把握，先控制仓位、耐心观察。",
+            reasoning=default_reasoning,
         )
 
     return call_llm(

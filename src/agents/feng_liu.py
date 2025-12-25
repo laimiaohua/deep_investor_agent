@@ -159,46 +159,86 @@ def _generate_chinese_master_output(
 ) -> ChineseMasterSignal:
     """让 LLM 按指定中国投资大师的风格，给出多空观点。"""
 
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
     checklist_text = "\n".join(f"- {item}" for item in checklist)
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            f"You are {persona_name} ({persona_label}), a renowned Chinese contrarian long-term investor.\n"
+            f"Investing style: {investing_style}\n\n"
+            "你更关心"预期差"和企业真实变化，而不是短期故事和情绪。\n"
+            "只看给你的数据，不要胡编股价、K线或新闻。\n"
+            "请按下面清单思考：\n"
+            f"{checklist_text}\n\n"
+            "输出规则：\n"
+            "- bullish：预期差大、内在在变好，愿意慢慢买入并长期持有\n"
+            "- bearish：看不到改善或预期过高，不愿意参与\n"
+            "- neutral：方向不明或好坏对半，看不出大的预期差\n"
+            "confidence 用 0-100 的整数。\n"
+            "reasoning 需要详细完整（200-500 字符），必须包含：\n"
+            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+            "  2. 预期差分析：市场预期与实际情况的差异\n"
+            "  3. 企业变化：业务、财务、管理等方面的真实变化\n"
+            "  4. 投资逻辑：为什么做出这个判断，基于哪些关键因素\n"
+            "  5. 风险提示：需要注意的风险点\n"
+            "  6. 结论：明确的投资建议和理由\n"
+            "只返回 JSON。"
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n\n"
+            "Facts (do not invent new data):\n"
+            "{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification in Chinese"\n'
+            "}}"
+        )
+        default_reasoning = "暂未看到明显预期差，用小仓位或继续观察更合适。"
+    else:
+        system_prompt = (
+            f"You are {persona_name} ({persona_label}), a renowned Chinese contrarian long-term investor.\n"
+            f"Investing style: {investing_style}\n\n"
+            "You care more about 'expectation gap' and real changes in the company, rather than short-term stories and sentiment.\n"
+            "Only look at the data provided, do not fabricate stock prices, K-lines, or news.\n"
+            "Please think using the following checklist:\n"
+            f"{checklist_text}\n\n"
+            "Output rules:\n"
+            "- bullish: Large expectation gap, fundamentals improving, willing to slowly buy and hold long-term\n"
+            "- bearish: No improvement visible or expectations too high, unwilling to participate\n"
+            "- neutral: Direction unclear or mixed, no significant expectation gap visible\n"
+            "confidence should be an integer from 0-100.\n"
+            "reasoning should be detailed and complete (200-500 characters), must include:\n"
+            "  1. Core analysis basis: Specific data indicators, financial performance, valuation levels, etc.\n"
+            "  2. Expectation gap analysis: Difference between market expectations and actual situation\n"
+            "  3. Enterprise changes: Real changes in business, finance, management, etc.\n"
+            "  4. Investment logic: Why this judgment is made, based on which key factors\n"
+            "  5. Risk warning: Risk points to pay attention to\n"
+            "  6. Conclusion: Clear investment recommendation and reasoning\n"
+            "Return JSON only."
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n\n"
+            "Facts (do not invent new data):\n"
+            "{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification in English"\n'
+            "}}"
+        )
+        default_reasoning = "No significant expectation gap visible yet, using small positions or continuing to observe is more appropriate."
 
     template = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                (
-                    f"You are {persona_name} ({persona_label}), a renowned Chinese contrarian long-term investor.\n"
-                    f"Investing style: {investing_style}\n\n"
-                    "你更关心“预期差”和企业真实变化，而不是短期故事和情绪。\n"
-                    "只看给你的数据，不要胡编股价、K线或新闻。\n"
-                    "请按下面清单思考：\n"
-                    f"{checklist_text}\n\n"
-                    "输出规则：\n"
-                    "- bullish：预期差大、内在在变好，愿意慢慢买入并长期持有\n"
-                    "- bearish：看不到改善或预期过高，不愿意参与\n"
-                    "- neutral：方向不明或好坏对半，看不出大的预期差\n"
-                    "confidence 用 0-100 的整数。\n"
-                    "reasoning 需要详细完整（200-500 字符），必须包含：\n"
-                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-                    "  2. 预期差分析：市场预期与实际情况的差异\n"
-                    "  3. 企业变化：业务、财务、管理等方面的真实变化\n"
-                    "  4. 投资逻辑：为什么做出这个判断，基于哪些关键因素\n"
-                    "  5. 风险提示：需要注意的风险点\n"
-                    "  6. 结论：明确的投资建议和理由\n"
-                    "只返回 JSON。"
-                ),
-            ),
-            (
-                "human",
-                "Ticker: {ticker}\n\n"
-                "Facts (do not invent new data):\n"
-                "{facts}\n\n"
-                "Return exactly:\n"
-                "{{\n"
-                '  "signal": "bullish" | "bearish" | "neutral",\n'
-                '  "confidence": int,\n'
-                '  "reasoning": "short justification in Chinese"\n'
-                "}}",
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -213,7 +253,7 @@ def _generate_chinese_master_output(
         return ChineseMasterSignal(
             signal="neutral",
             confidence=50,
-            reasoning="暂未看到明显预期差，用小仓位或继续观察更合适。",
+            reasoning=default_reasoning,
         )
 
     return call_llm(

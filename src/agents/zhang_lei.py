@@ -157,45 +157,84 @@ def _generate_chinese_master_output(
 ) -> ChineseMasterSignal:
     """让 LLM 按指定中国投资大师的风格，给出多空观点。"""
 
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
     checklist_text = "\n".join(f"- {item}" for item in checklist)
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
+            f"Investing style: {investing_style}\n\n"
+            "只根据提供的定量/定性信息做判断，不要自己幻想数据。\n"
+            "请用下面的检查清单来思考：\n"
+            f"{checklist_text}\n\n"
+            "输出规则：\n"
+            "- bullish：愿意长期重仓或显著加仓\n"
+            "- bearish：不愿持有/会明显减仓\n"
+            "- neutral：观望或小仓位试错\n"
+            "confidence 用 0-100 的整数。\n"
+            "reasoning 需要详细完整（200-500 字符），要求专业但通俗，必须包含：\n"
+            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+            "  2. 企业质量：业务模式、竞争优势、复利能力等\n"
+            "  3. 长期复利：为什么这家公司能持续创造价值，复利逻辑是什么\n"
+            "  4. 估值判断：当前价格是否合理，是否符合"好公司+好价格+长时间"的标准\n"
+            "  5. 风险提示：需要注意的风险点\n"
+            "  6. 结论：明确的投资建议和理由\n"
+            "只返回 JSON。"
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n\n"
+            "Facts (do not invent new data):\n"
+            "{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification in Chinese"\n'
+            "}}"
+        )
+        default_reasoning = "数据有限，看不清未来复利能力，暂时观望。"
+    else:
+        system_prompt = (
+            f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
+            f"Investing style: {investing_style}\n\n"
+            "Only make judgments based on the provided quantitative/qualitative information, do not fabricate data.\n"
+            "Please think using the following checklist:\n"
+            f"{checklist_text}\n\n"
+            "Output rules:\n"
+            "- bullish: Willing to hold long-term with heavy positions or significantly add positions\n"
+            "- bearish: Unwilling to hold or will significantly reduce positions\n"
+            "- neutral: Wait and see or try with small positions\n"
+            "confidence should be an integer from 0-100.\n"
+            "reasoning should be detailed and complete (200-500 characters), professional but accessible, must include:\n"
+            "  1. Core analysis basis: Specific data indicators, financial performance, valuation levels, etc.\n"
+            "  2. Enterprise quality: Business model, competitive advantages, compounding ability, etc.\n"
+            "  3. Long-term compounding: Why this company can continuously create value, what is the compounding logic\n"
+            "  4. Valuation judgment: Whether the current price is reasonable, does it meet the standard of 'good company + good price + long time'\n"
+            "  5. Risk warning: Risk points to pay attention to\n"
+            "  6. Conclusion: Clear investment recommendation and reasoning\n"
+            "Return JSON only."
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n\n"
+            "Facts (do not invent new data):\n"
+            "{facts}\n\n"
+            "Return exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": int,\n'
+            '  "reasoning": "short justification in English"\n'
+            "}}"
+        )
+        default_reasoning = "Limited data available, unable to assess future compounding ability, wait and see for now."
 
     template = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                (
-                    f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
-                    f"Investing style: {investing_style}\n\n"
-                    "只根据提供的定量/定性信息做判断，不要自己幻想数据。\n"
-                    "请用下面的检查清单来思考：\n"
-                    f"{checklist_text}\n\n"
-                    "输出规则：\n"
-                    "- bullish：愿意长期重仓或显著加仓\n"
-                    "- bearish：不愿持有/会明显减仓\n"
-                    "- neutral：观望或小仓位试错\n"
-                    "confidence 用 0-100 的整数。\n"
-                    "reasoning 需要详细完整（200-500 字符），要求专业但通俗，必须包含：\n"
-                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-                    "  2. 企业质量：业务模式、竞争优势、复利能力等\n"
-                    "  3. 长期复利：为什么这家公司能持续创造价值，复利逻辑是什么\n"
-                    "  4. 估值判断：当前价格是否合理，是否符合“好公司+好价格+长时间”的标准\n"
-                    "  5. 风险提示：需要注意的风险点\n"
-                    "  6. 结论：明确的投资建议和理由\n"
-                    "只返回 JSON。"
-                ),
-            ),
-            (
-                "human",
-                "Ticker: {ticker}\n\n"
-                "Facts (do not invent new data):\n"
-                "{facts}\n\n"
-                "Return exactly:\n"
-                "{{\n"
-                '  "signal": "bullish" | "bearish" | "neutral",\n'
-                '  "confidence": int,\n'
-                '  "reasoning": "short justification in Chinese"\n'
-                "}}",
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -210,7 +249,7 @@ def _generate_chinese_master_output(
         return ChineseMasterSignal(
             signal="neutral",
             confidence=50,
-            reasoning="数据有限，看不清未来复利能力，暂时观望。",
+            reasoning=default_reasoning,
         )
 
     return call_llm(
