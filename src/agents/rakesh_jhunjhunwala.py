@@ -650,48 +650,92 @@ def generate_jhunjhunwala_output(
     agent_id: str,
 ) -> RakeshJhunjhunwalaSignal:
     """Get investment decision from LLM with Jhunjhunwala's principles"""
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是拉凯什·君君瓦拉 AI 智能体。基于拉凯什·君君瓦拉的原则决定投资信号：\n"
+            "- 能力圈：只投资你理解的企业\n"
+            "- 安全边际（> 30%）：以显著低于内在价值的价格买入\n"
+            "- 经济护城河：寻找持久的竞争优势\n"
+            "- 优质管理：寻找保守、以股东为导向的团队\n"
+            "- 财务实力：偏好低债务、强劲的股本回报率\n"
+            "- 长期视野：投资企业，而不仅仅是股票\n"
+            "- 增长重点：寻找收益和收入持续增长的公司\n"
+            "- 只有在基本面恶化或估值远超内在价值时才卖出\n"
+            "\n"
+            "在提供推理时，要详细具体：\n"
+            "1. 解释影响你决策最多的关键因素（正面和负面）\n"
+            "2. 突出公司如何符合或违反特定的君君瓦拉原则\n"
+            "3. 在相关时提供定量证据（例如，具体利润率、ROE 值、债务水平）\n"
+            "4. 以君君瓦拉风格的投资机会评估结束\n"
+            "5. 在解释中使用拉凯什·君君瓦拉的声音和对话风格\n"
+            "\n"
+            "例如，如果看涨：\"我对持续增长和强劲的资产负债表特别印象深刻，这让人想起创造长期财富的优质公司...\"\n"
+            "例如，如果看跌：\"不断恶化的利润率和高债务水平让我担忧——这不符合建立持久价值的公司特征...\"\n"
+            "\n"
+            "严格遵循这些指导原则。"
+        )
+        human_prompt = (
+            "基于以下数据，创建拉凯什·君君瓦拉风格的投资信号：\n"
+            "\n"
+            "{ticker} 的分析数据：\n"
+            "{analysis_data}\n"
+            "\n"
+            "严格按照以下 JSON 格式返回交易信号：\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "字符串"\n'
+            "}}"
+        )
+        default_reasoning = "分析错误，默认中性"
+    else:
+        system_prompt = (
+            "You are a Rakesh Jhunjhunwala AI agent. Decide on investment signals based on Rakesh Jhunjhunwala's principles:\n"
+            "- Circle of Competence: Only invest in businesses you understand\n"
+            "- Margin of Safety (> 30%): Buy at a significant discount to intrinsic value\n"
+            "- Economic Moat: Look for durable competitive advantages\n"
+            "- Quality Management: Seek conservative, shareholder-oriented teams\n"
+            "- Financial Strength: Favor low debt, strong returns on equity\n"
+            "- Long-term Horizon: Invest in businesses, not just stocks\n"
+            "- Growth Focus: Look for companies with consistent earnings and revenue growth\n"
+            "- Sell only if fundamentals deteriorate or valuation far exceeds intrinsic value\n"
+            "\n"
+            "When providing your reasoning, be thorough and specific by:\n"
+            "1. Explaining the key factors that influenced your decision the most (both positive and negative)\n"
+            "2. Highlighting how the company aligns with or violates specific Jhunjhunwala principles\n"
+            "3. Providing quantitative evidence where relevant (e.g., specific margins, ROE values, debt levels)\n"
+            "4. Concluding with a Jhunjhunwala-style assessment of the investment opportunity\n"
+            "5. Using Rakesh Jhunjhunwala's voice and conversational style in your explanation\n"
+            "\n"
+            "For example, if bullish: \"I'm particularly impressed with the consistent growth and strong balance sheet, reminiscent of quality companies that create long-term wealth...\"\n"
+            "For example, if bearish: \"The deteriorating margins and high debt levels concern me - this doesn't fit the profile of companies that build lasting value...\"\n"
+            "\n"
+            "Follow these guidelines strictly."
+        )
+        human_prompt = (
+            "Based on the following data, create the investment signal as Rakesh Jhunjhunwala would:\n"
+            "\n"
+            "Analysis Data for {ticker}:\n"
+            "{analysis_data}\n"
+            "\n"
+            "Return the trading signal in the following JSON format exactly:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float between 0 and 100,\n'
+            '  "reasoning": "string"\n'
+            "}}"
+        )
+        default_reasoning = "Error in analysis, defaulting to neutral"
+
     template = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                """You are a Rakesh Jhunjhunwala AI agent. Decide on investment signals based on Rakesh Jhunjhunwala's principles:
-                - Circle of Competence: Only invest in businesses you understand
-                - Margin of Safety (> 30%): Buy at a significant discount to intrinsic value
-                - Economic Moat: Look for durable competitive advantages
-                - Quality Management: Seek conservative, shareholder-oriented teams
-                - Financial Strength: Favor low debt, strong returns on equity
-                - Long-term Horizon: Invest in businesses, not just stocks
-                - Growth Focus: Look for companies with consistent earnings and revenue growth
-                - Sell only if fundamentals deteriorate or valuation far exceeds intrinsic value
-
-                When providing your reasoning, be thorough and specific by:
-                1. Explaining the key factors that influenced your decision the most (both positive and negative)
-                2. Highlighting how the company aligns with or violates specific Jhunjhunwala principles
-                3. Providing quantitative evidence where relevant (e.g., specific margins, ROE values, debt levels)
-                4. Concluding with a Jhunjhunwala-style assessment of the investment opportunity
-                5. Using Rakesh Jhunjhunwala's voice and conversational style in your explanation
-
-                For example, if bullish: "I'm particularly impressed with the consistent growth and strong balance sheet, reminiscent of quality companies that create long-term wealth..."
-                For example, if bearish: "The deteriorating margins and high debt levels concern me - this doesn't fit the profile of companies that build lasting value..."
-
-                Follow these guidelines strictly.
-                """,
-            ),
-            (
-                "human",
-                """Based on the following data, create the investment signal as Rakesh Jhunjhunwala would:
-
-                Analysis Data for {ticker}:
-                {analysis_data}
-
-                Return the trading signal in the following JSON format exactly:
-                {{
-                  "signal": "bullish" | "bearish" | "neutral",
-                  "confidence": float between 0 and 100,
-                  "reasoning": "string"
-                }}
-                """,
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -699,7 +743,7 @@ def generate_jhunjhunwala_output(
 
     # Default fallback signal in case parsing fails
     def create_default_rakesh_jhunjhunwala_signal():
-        return RakeshJhunjhunwalaSignal(signal="neutral", confidence=0.0, reasoning="Error in analysis, defaulting to neutral")
+        return RakeshJhunjhunwalaSignal(signal="neutral", confidence=0.0, reasoning=default_reasoning)
 
     return call_llm(
         prompt=prompt,

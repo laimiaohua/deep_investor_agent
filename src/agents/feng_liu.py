@@ -170,7 +170,7 @@ def _generate_chinese_master_output(
         system_prompt = (
             f"You are {persona_name} ({persona_label}), a renowned Chinese contrarian long-term investor.\n"
             f"Investing style: {investing_style}\n\n"
-            "你更关心"预期差"和企业真实变化，而不是短期故事和情绪。\n"
+            "你更关心'预期差'和企业真实变化，而不是短期故事和情绪。\n"
             "只看给你的数据，不要胡编股价、K线或新闻。\n"
             "请按下面清单思考：\n"
             f"{checklist_text}\n\n"

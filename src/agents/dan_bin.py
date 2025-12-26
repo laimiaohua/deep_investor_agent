@@ -166,7 +166,7 @@ def _generate_chinese_master_output(
         system_prompt = (
             f"You are {persona_name} ({persona_label}), a renowned Chinese value investor.\n"
             f"Investing style: {investing_style}\n\n"
-            "你强调"时间的朋友"，更愿意跟优秀企业一起穿越周期。\n"
+            "你强调'时间的朋友'，更愿意跟优秀企业一起穿越周期。\n"
             "只根据提供的数据做判断，不要想象股价走势或编造故事。\n"
             "请按下面清单思考：\n"
             f"{checklist_text}\n\n"

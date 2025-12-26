@@ -313,37 +313,71 @@ def generate_pabrai_output(
     agent_id: str,
 ) -> MohnishPabraiSignal:
     """Generate Pabrai-style decision focusing on low risk, high uncertainty bets and cloning."""
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是莫尼什·帕伯莱。应用我的价值投资哲学：\n"
+            "\n"
+            "- 正面我赢；反面我不亏太多：首先优先考虑下行保护。\n"
+            "- 购买具有简单、可理解模式和持久护城河的企业。\n"
+            "- 要求高自由现金流收益率和低杠杆；偏好轻资产模式。\n"
+            "- 寻找内在价值上升而价格显著较低的情况。\n"
+            "- 偏好克隆伟大投资者的想法和检查清单，而不是新颖性。\n"
+            "- 寻求在 2-3 年内以低风险使资本翻倍的潜力。\n"
+            "- 避免杠杆、复杂性和脆弱的资产负债表。\n"
+            "\n"
+            "提供坦率、检查清单驱动的推理，强调资本保值和预期错误定价。"
+        )
+        human_prompt = (
+            "使用提供的数据分析 {ticker}。\n"
+            "\n"
+            "数据：\n"
+            "{analysis_data}\n"
+            "\n"
+            "严格按照以下 JSON 返回：\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "帕伯莱风格的分析字符串，专注于下行保护、FCF 收益率和翻倍潜力"\n'
+            "}}"
+        )
+        default_reasoning = "分析错误，默认中性"
+    else:
+        system_prompt = (
+            "You are Mohnish Pabrai. Apply my value investing philosophy:\n"
+            "\n"
+            "- Heads I win; tails I don't lose much: prioritize downside protection first.\n"
+            "- Buy businesses with simple, understandable models and durable moats.\n"
+            "- Demand high free cash flow yields and low leverage; prefer asset-light models.\n"
+            "- Look for situations where intrinsic value is rising and price is significantly lower.\n"
+            "- Favor cloning great investors' ideas and checklists over novelty.\n"
+            "- Seek potential to double capital in 2-3 years with low risk.\n"
+            "- Avoid leverage, complexity, and fragile balance sheets.\n"
+            "\n"
+            "Provide candid, checklist-driven reasoning, with emphasis on capital preservation and expected mispricing."
+        )
+        human_prompt = (
+            "Analyze {ticker} using the provided data.\n"
+            "\n"
+            "DATA:\n"
+            "{analysis_data}\n"
+            "\n"
+            "Return EXACTLY this JSON:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "string with Pabrai-style analysis focusing on downside protection, FCF yield, and doubling potential"\n'
+            "}}"
+        )
+        default_reasoning = "Error in analysis, defaulting to neutral"
+
     template = ChatPromptTemplate.from_messages([
-        (
-          "system",
-          """You are Mohnish Pabrai. Apply my value investing philosophy:
-
-          - Heads I win; tails I don't lose much: prioritize downside protection first.
-          - Buy businesses with simple, understandable models and durable moats.
-          - Demand high free cash flow yields and low leverage; prefer asset-light models.
-          - Look for situations where intrinsic value is rising and price is significantly lower.
-          - Favor cloning great investors' ideas and checklists over novelty.
-          - Seek potential to double capital in 2-3 years with low risk.
-          - Avoid leverage, complexity, and fragile balance sheets.
-
-            Provide candid, checklist-driven reasoning, with emphasis on capital preservation and expected mispricing.
-            """,
-        ),
-        (
-          "human",
-          """Analyze {ticker} using the provided data.
-
-          DATA:
-          {analysis_data}
-
-          Return EXACTLY this JSON:
-          {{
-            "signal": "bullish" | "bearish" | "neutral",
-            "confidence": float (0-100),
-            "reasoning": "string with Pabrai-style analysis focusing on downside protection, FCF yield, and doubling potential"
-          }}
-          """,
-        ),
+        ("system", system_prompt),
+        ("human", human_prompt),
     ])
 
     prompt = template.invoke({
@@ -352,7 +386,7 @@ def generate_pabrai_output(
     })
 
     def create_default_pabrai_signal():
-        return MohnishPabraiSignal(signal="neutral", confidence=0.0, reasoning="Error in analysis, defaulting to neutral")
+        return MohnishPabraiSignal(signal="neutral", confidence=0.0, reasoning=default_reasoning)
 
     return call_llm(
         prompt=prompt,

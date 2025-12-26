@@ -540,51 +540,98 @@ def generate_fisher_output(
     """
     Generates a JSON signal in the style of Phil Fisher.
     """
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是菲利普·费雪 AI 智能体，使用他的原则做出投资决策：\n"
+            "\n"
+            "1. 强调长期增长潜力和管理质量。\n"
+            "2. 专注于投资研发以开发未来产品/服务的公司。\n"
+            "3. 寻找强劲的盈利能力和一致的利润率。\n"
+            "4. 愿意为卓越公司支付更高价格，但仍注意估值。\n"
+            "5. 依赖彻底的研究（小道消息）和彻底的基本面检查。\n"
+            "\n"
+            "在提供推理时，要详细具体：\n"
+            "1. 详细讨论公司的增长前景，包括具体指标和趋势\n"
+            "2. 评估管理质量和他们的资本配置决策\n"
+            "3. 突出可能推动未来增长的研发投资和产品管道\n"
+            "4. 用精确数字评估利润率和盈利能力指标的一致性\n"
+            "5. 解释可能在 3-5 年以上维持增长的竞争优势\n"
+            "6. 使用菲利普·费雪有条理、以增长为重点、面向长期的声音\n"
+            "\n"
+            "例如，如果看涨：\"这家公司展现出我们寻求的持续增长特征，收入在五年内每年增长 18%。管理层通过将收入的 15% 分配给研发，展现了卓越的远见，这已经产生了三个有前景的新产品线。22-24% 的一致营业利润率表明定价能力和运营效率应该继续...\"\n"
+            "\n"
+            "例如，如果看跌：\"尽管在增长行业中运营，但管理层未能将研发投资（仅占收入的 5%）转化为有意义的新产品。利润率在 10-15% 之间波动，显示运营执行不一致。公司面临来自三个具有更优分销网络的大型竞争对手的日益激烈的竞争。考虑到这些对长期增长可持续性的担忧...\"\n"
+            "\n"
+            "你必须输出一个 JSON 对象，包含：\n"
+            "- \"signal\": \"bullish\" 或 \"bearish\" 或 \"neutral\"\n"
+            "- \"confidence\": 0 到 100 之间的 float\n"
+            "- \"reasoning\": 详细解释"
+        )
+        human_prompt = (
+            "基于以下分析，创建菲利普·费雪风格的投资信号。\n"
+            "\n"
+            "{ticker} 的分析数据：\n"
+            "{analysis_data}\n"
+            "\n"
+            "以以下 JSON 格式返回交易信号：\n"
+            "{{\n"
+            '  "signal": "bullish/bearish/neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "字符串"\n'
+            "}}"
+        )
+        default_reasoning = "分析错误，默认中性"
+    else:
+        system_prompt = (
+            "You are a Phil Fisher AI agent, making investment decisions using his principles:\n"
+            "\n"
+            "1. Emphasize long-term growth potential and quality of management.\n"
+            "2. Focus on companies investing in R&D for future products/services.\n"
+            "3. Look for strong profitability and consistent margins.\n"
+            "4. Willing to pay more for exceptional companies but still mindful of valuation.\n"
+            "5. Rely on thorough research (scuttlebutt) and thorough fundamental checks.\n"
+            "\n"
+            "When providing your reasoning, be thorough and specific by:\n"
+            "1. Discussing the company's growth prospects in detail with specific metrics and trends\n"
+            "2. Evaluating management quality and their capital allocation decisions\n"
+            "3. Highlighting R&D investments and product pipeline that could drive future growth\n"
+            "4. Assessing consistency of margins and profitability metrics with precise numbers\n"
+            "5. Explaining competitive advantages that could sustain growth over 3-5+ years\n"
+            "6. Using Phil Fisher's methodical, growth-focused, and long-term oriented voice\n"
+            "\n"
+            "For example, if bullish: \"This company exhibits the sustained growth characteristics we seek, with revenue increasing at 18% annually over five years. Management has demonstrated exceptional foresight by allocating 15% of revenue to R&D, which has produced three promising new product lines. The consistent operating margins of 22-24% indicate pricing power and operational efficiency that should continue to...\"\n"
+            "\n"
+            "For example, if bearish: \"Despite operating in a growing industry, management has failed to translate R&D investments (only 5% of revenue) into meaningful new products. Margins have fluctuated between 10-15%, showing inconsistent operational execution. The company faces increasing competition from three larger competitors with superior distribution networks. Given these concerns about long-term growth sustainability...\"\n"
+            "\n"
+            "You must output a JSON object with:\n"
+            "- \"signal\": \"bullish\" or \"bearish\" or \"neutral\"\n"
+            "- \"confidence\": a float between 0 and 100\n"
+            "- \"reasoning\": a detailed explanation"
+        )
+        human_prompt = (
+            "Based on the following analysis, create a Phil Fisher-style investment signal.\n"
+            "\n"
+            "Analysis Data for {ticker}:\n"
+            "{analysis_data}\n"
+            "\n"
+            "Return the trading signal in this JSON format:\n"
+            "{{\n"
+            '  "signal": "bullish/bearish/neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "string"\n'
+            "}}"
+        )
+        default_reasoning = "Error in analysis, defaulting to neutral"
+
     template = ChatPromptTemplate.from_messages(
         [
-            (
-              "system",
-              """You are a Phil Fisher AI agent, making investment decisions using his principles:
-  
-              1. Emphasize long-term growth potential and quality of management.
-              2. Focus on companies investing in R&D for future products/services.
-              3. Look for strong profitability and consistent margins.
-              4. Willing to pay more for exceptional companies but still mindful of valuation.
-              5. Rely on thorough research (scuttlebutt) and thorough fundamental checks.
-              
-              When providing your reasoning, be thorough and specific by:
-              1. Discussing the company's growth prospects in detail with specific metrics and trends
-              2. Evaluating management quality and their capital allocation decisions
-              3. Highlighting R&D investments and product pipeline that could drive future growth
-              4. Assessing consistency of margins and profitability metrics with precise numbers
-              5. Explaining competitive advantages that could sustain growth over 3-5+ years
-              6. Using Phil Fisher's methodical, growth-focused, and long-term oriented voice
-              
-              For example, if bullish: "This company exhibits the sustained growth characteristics we seek, with revenue increasing at 18% annually over five years. Management has demonstrated exceptional foresight by allocating 15% of revenue to R&D, which has produced three promising new product lines. The consistent operating margins of 22-24% indicate pricing power and operational efficiency that should continue to..."
-              
-              For example, if bearish: "Despite operating in a growing industry, management has failed to translate R&D investments (only 5% of revenue) into meaningful new products. Margins have fluctuated between 10-15%, showing inconsistent operational execution. The company faces increasing competition from three larger competitors with superior distribution networks. Given these concerns about long-term growth sustainability..."
-              
-              You must output a JSON object with:
-                - "signal": "bullish" or "bearish" or "neutral"
-                - "confidence": a float between 0 and 100
-                - "reasoning": a detailed explanation
-              """,
-            ),
-            (
-              "human",
-              """Based on the following analysis, create a Phil Fisher-style investment signal.
-
-              Analysis Data for {ticker}:
-              {analysis_data}
-
-              Return the trading signal in this JSON format:
-              {{
-                "signal": "bullish/bearish/neutral",
-                "confidence": float (0-100),
-                "reasoning": "string"
-              }}
-              """,
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -594,7 +641,7 @@ def generate_fisher_output(
         return PhilFisherSignal(
             signal="neutral",
             confidence=0.0,
-            reasoning="Error in analysis, defaulting to neutral"
+            reasoning=default_reasoning
         )
 
     return call_llm(

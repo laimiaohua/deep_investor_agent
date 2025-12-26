@@ -14,6 +14,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTheme } from 'next-themes';
 
 interface AgentOutputDialogProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ export function AgentOutputDialog({
   flowId
 }: AgentOutputDialogProps) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const { getAgentNodeDataForFlow } = useNodeContext();
   
   // Use the passed flowId instead of getting it from flow context
@@ -222,7 +225,7 @@ export function AgentOutputDialog({
                           <div className="overflow-auto rounded-md text-xs">
                             <SyntaxHighlighter
                               language="json"
-                              style={vscDarkPlus}
+                              style={theme === 'dark' ? vscDarkPlus : oneLight}
                               customStyle={{
                                 margin: 0,
                                 padding: '0.75rem',

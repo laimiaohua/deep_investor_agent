@@ -2,6 +2,8 @@ import { Copy, Download } from 'lucide-react';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTheme } from 'next-themes';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +26,7 @@ export function JsonOutputDialog({
   outputNodeData,
   connectedAgentIds
 }: JsonOutputDialogProps) {
+  const { theme } = useTheme();
   const [copySuccess, setCopySuccess] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
@@ -107,7 +110,7 @@ export function JsonOutputDialog({
         <div className="flex-1 min-h-0 my-4 overflow-auto rounded-md border border-border bg-muted/30">
           <SyntaxHighlighter
             language="json"
-            style={vscDarkPlus}
+            style={theme === 'dark' ? vscDarkPlus : oneLight}
             customStyle={{
               margin: 0,
               padding: '0.75rem',

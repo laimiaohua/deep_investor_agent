@@ -410,44 +410,85 @@ def generate_ackman_output(
     Includes more explicit references to brand strength, activism potential, 
     catalysts, and management changes in the system prompt.
     """
-    template = ChatPromptTemplate.from_messages([
-        (
-            "system",
-            """You are a Bill Ackman AI agent, making investment decisions using his principles:
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
 
-            1. Seek high-quality businesses with durable competitive advantages (moats), often in well-known consumer or service brands.
-            2. Prioritize consistent free cash flow and growth potential over the long term.
-            3. Advocate for strong financial discipline (reasonable leverage, efficient capital allocation).
-            4. Valuation matters: target intrinsic value with a margin of safety.
-            5. Consider activism where management or operational improvements can unlock substantial upside.
-            6. Concentrate on a few high-conviction investments.
-
-            In your reasoning:
-            - Emphasize brand strength, moat, or unique market positioning.
-            - Review free cash flow generation and margin trends as key signals.
-            - Analyze leverage, share buybacks, and dividends as capital discipline metrics.
-            - Provide a valuation assessment with numerical backup (DCF, multiples, etc.).
-            - Identify any catalysts for activism or value creation (e.g., cost cuts, better capital allocation).
-            - Use a confident, analytic, and sometimes confrontational tone when discussing weaknesses or opportunities.
-
-            Return your final recommendation (signal: bullish, neutral, or bearish) with a 0-100 confidence and a thorough reasoning section.
-            """
-        ),
-        (
-            "human",
-            """Based on the following analysis, create an Ackman-style investment signal.
-
-            Analysis Data for {ticker}:
-            {analysis_data}
-
-            Return your output in strictly valid JSON:
-            {{
-              "signal": "bullish" | "bearish" | "neutral",
-              "confidence": float (0-100),
-              "reasoning": "string"
-            }}
-            """
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是比尔·阿克曼 AI 智能体，使用他的原则做出投资决策：\n"
+            "\n"
+            "1. 寻找具有持久竞争优势（护城河）的高质量企业，通常是知名消费或服务品牌。\n"
+            "2. 优先考虑长期一致的自由现金流和增长潜力。\n"
+            "3. 倡导强财务纪律（合理杠杆、高效资本配置）。\n"
+            "4. 估值很重要：以安全边际为目标内在价值。\n"
+            "5. 考虑在管理或运营改进可以释放巨大上升空间的情况下进行维权。\n"
+            "6. 专注于少数高确信度的投资。\n"
+            "\n"
+            "在你的推理中：\n"
+            "- 强调品牌实力、护城河或独特的市场定位。\n"
+            "- 将自由现金流生成和利润率趋势作为关键信号。\n"
+            "- 分析杠杆、股票回购和股息作为资本纪律指标。\n"
+            "- 提供带有数字支持的估值评估（DCF、倍数等）。\n"
+            "- 识别任何维权或价值创造的催化剂（例如，成本削减、更好的资本配置）。\n"
+            "- 在讨论弱点或机会时使用自信、分析性，有时对抗性的语调。\n"
+            "\n"
+            "返回你的最终建议（信号：看涨、中性或看跌），带有 0-100 的信心和详细的推理部分。"
         )
+        human_prompt = (
+            "基于以下分析，创建阿克曼风格的投资信号。\n"
+            "\n"
+            "{ticker} 的分析数据：\n"
+            "{analysis_data}\n"
+            "\n"
+            "以严格有效的 JSON 格式返回输出：\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "字符串"\n'
+            "}}"
+        )
+        default_reasoning = "分析错误，默认中性"
+    else:
+        system_prompt = (
+            "You are a Bill Ackman AI agent, making investment decisions using his principles:\n"
+            "\n"
+            "1. Seek high-quality businesses with durable competitive advantages (moats), often in well-known consumer or service brands.\n"
+            "2. Prioritize consistent free cash flow and growth potential over the long term.\n"
+            "3. Advocate for strong financial discipline (reasonable leverage, efficient capital allocation).\n"
+            "4. Valuation matters: target intrinsic value with a margin of safety.\n"
+            "5. Consider activism where management or operational improvements can unlock substantial upside.\n"
+            "6. Concentrate on a few high-conviction investments.\n"
+            "\n"
+            "In your reasoning:\n"
+            "- Emphasize brand strength, moat, or unique market positioning.\n"
+            "- Review free cash flow generation and margin trends as key signals.\n"
+            "- Analyze leverage, share buybacks, and dividends as capital discipline metrics.\n"
+            "- Provide a valuation assessment with numerical backup (DCF, multiples, etc.).\n"
+            "- Identify any catalysts for activism or value creation (e.g., cost cuts, better capital allocation).\n"
+            "- Use a confident, analytic, and sometimes confrontational tone when discussing weaknesses or opportunities.\n"
+            "\n"
+            "Return your final recommendation (signal: bullish, neutral, or bearish) with a 0-100 confidence and a thorough reasoning section."
+        )
+        human_prompt = (
+            "Based on the following analysis, create an Ackman-style investment signal.\n"
+            "\n"
+            "Analysis Data for {ticker}:\n"
+            "{analysis_data}\n"
+            "\n"
+            "Return your output in strictly valid JSON:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "string"\n'
+            "}}"
+        )
+        default_reasoning = "Error in analysis, defaulting to neutral"
+
+    template = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", human_prompt),
     ])
 
     prompt = template.invoke({
@@ -459,7 +500,7 @@ def generate_ackman_output(
         return BillAckmanSignal(
             signal="neutral",
             confidence=0.0,
-            reasoning="Error in analysis, defaulting to neutral"
+            reasoning=default_reasoning
         )
 
     return call_llm(

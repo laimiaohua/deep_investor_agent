@@ -373,34 +373,70 @@ def generate_damodaran_output(
       • Emphasize risk, growth, and cash-flow assumptions
       • Cite cost of capital, implied MOS, and valuation cross-checks
     """
+    # 获取语言设置
+    language = state.get("metadata", {}).get("language") or "en"
+    is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+
+    # 根据语言生成不同的 prompt
+    if is_chinese:
+        system_prompt = (
+            "你是阿斯沃思·达摩达兰，纽约大学斯特恩商学院的金融学教授。\n"
+            "使用你的估值框架对美国股票发出交易信号。\n"
+            "\n"
+            "用你通常清晰、数据驱动的语调：\n"
+            "◦ 从公司的\"故事\"开始（定性）\n"
+            "◦ 将该故事与关键数字驱动因素联系起来：收入增长、利润率、再投资、风险\n"
+            "◦ 以价值结束：你的 FCFF DCF 估计、安全边际和相对估值合理性检查\n"
+            "◦ 突出主要不确定性以及它们如何影响价值\n"
+            "\n"
+            "只返回下面指定的 JSON。"
+        )
+        human_prompt = (
+            "股票代码: {ticker}\n"
+            "\n"
+            "分析数据:\n"
+            "{analysis_data}\n"
+            "\n"
+            "严格按照以下 JSON 模式响应：\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "字符串"\n'
+            "}}"
+        )
+        default_reasoning = "解析错误；默认中性"
+    else:
+        system_prompt = (
+            "You are Aswath Damodaran, Professor of Finance at NYU Stern.\n"
+            "Use your valuation framework to issue trading signals on US equities.\n"
+            "\n"
+            "Speak with your usual clear, data-driven tone:\n"
+            "◦ Start with the company \"story\" (qualitatively)\n"
+            "◦ Connect that story to key numerical drivers: revenue growth, margins, reinvestment, risk\n"
+            "◦ Conclude with value: your FCFF DCF estimate, margin of safety, and relative valuation sanity checks\n"
+            "◦ Highlight major uncertainties and how they affect value\n"
+            "\n"
+            "Return ONLY the JSON specified below."
+        )
+        human_prompt = (
+            "Ticker: {ticker}\n"
+            "\n"
+            "Analysis data:\n"
+            "{analysis_data}\n"
+            "\n"
+            "Respond EXACTLY in this JSON schema:\n"
+            "{{\n"
+            '  "signal": "bullish" | "bearish" | "neutral",\n'
+            '  "confidence": float (0-100),\n'
+            '  "reasoning": "string"\n'
+            "}}"
+        )
+        default_reasoning = "Parsing error; defaulting to neutral"
+
     template = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                """You are Aswath Damodaran, Professor of Finance at NYU Stern.
-                Use your valuation framework to issue trading signals on US equities.
-
-                Speak with your usual clear, data-driven tone:
-                  ◦ Start with the company "story" (qualitatively)
-                  ◦ Connect that story to key numerical drivers: revenue growth, margins, reinvestment, risk
-                  ◦ Conclude with value: your FCFF DCF estimate, margin of safety, and relative valuation sanity checks
-                  ◦ Highlight major uncertainties and how they affect value
-                Return ONLY the JSON specified below.""",
-            ),
-            (
-                "human",
-                """Ticker: {ticker}
-
-                Analysis data:
-                {analysis_data}
-
-                Respond EXACTLY in this JSON schema:
-                {{
-                  "signal": "bullish" | "bearish" | "neutral",
-                  "confidence": float (0-100),
-                  "reasoning": "string"
-                }}""",
-            ),
+            ("system", system_prompt),
+            ("human", human_prompt),
         ]
     )
 
@@ -410,7 +446,7 @@ def generate_damodaran_output(
         return AswathDamodaranSignal(
             signal="neutral",
             confidence=0.0,
-            reasoning="Parsing error; defaulting to neutral",
+            reasoning=default_reasoning,
         )
 
     return call_llm(
