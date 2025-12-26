@@ -105,6 +105,27 @@ def qiu_guolu_agent(state: AgentState, agent_id: str = "qiu_guolu_agent"):
                 facts["cn_balance_sheet_error"] = str(e)
 
         progress.update_status(agent_id, ticker, "Generating Qiu Guolu analysis")
+        # 获取语言设置以决定 checklist 的语言
+        language = state.get("metadata", {}).get("language") or "en"
+        is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+        
+        if is_chinese:
+            checklist = [
+                "行业当前大致处于景气上行、平台还是下行阶段（根据增长与利润率大致判断）",
+                "公司在行业中的竞争地位和盈利质量是否明显优于同类",
+                "估值指标（PE、PB、PS等）相对历史和成长是否偏低",
+                "资产负债表是否稳健，抗周期能力如何",
+                "当前阶段更像'悲观定价'还是'乐观定价'",
+            ]
+        else:
+            checklist = [
+                "Is the industry currently in an upswing, plateau, or downturn phase (judged by growth and profit margins)",
+                "Is the company's competitive position and profit quality significantly better than peers",
+                "Are valuation metrics (PE, PB, PS, etc.) relatively low compared to history and growth",
+                "Is the balance sheet solid, how is the ability to withstand cycles",
+                "Does the current stage resemble 'pessimistic pricing' or 'optimistic pricing'",
+            ]
+        
         output = _generate_chinese_master_output(
             ticker=ticker,
             facts=facts,
@@ -114,13 +135,7 @@ def qiu_guolu_agent(state: AgentState, agent_id: str = "qiu_guolu_agent"):
                 "Top-down analysis of macro and industry cycles, bottom-up stock selection. "
                 "Emphasizes buying during pessimism and selling during optimism, pursuing safety margin and risk-reward ratio."
             ),
-            checklist=[
-                "行业当前大致处于景气上行、平台还是下行阶段（根据增长与利润率大致判断）",
-                "公司在行业中的竞争地位和盈利质量是否明显优于同类",
-                "估值指标（PE、PB、PS等）相对历史和成长是否偏低",
-                "资产负债表是否稳健，抗周期能力如何",
-                "当前阶段更像“悲观定价”还是“乐观定价”",
-            ],
+            checklist=checklist,
             agent_id=agent_id,
             state=state,
         )
@@ -165,35 +180,35 @@ def _generate_chinese_master_output(
     # 根据语言生成不同的 prompt
     if is_chinese:
         system_prompt = (
-            f"You are {persona_name} ({persona_label}), a renowned Chinese value & macro-cycle investor.\n"
-            f"Investing style: {investing_style}\n\n"
-            "你要像邱国鹭写路演一样，结合行业周期和公司质量来判断。\n"
-            "只根据提供的数据做判断，不要胡编历史或宏观数据。\n"
-            "请按下面清单思考：\n"
-            f"{checklist_text}\n\n"
-            "输出规则：\n"
-            "- bullish：当前定价明显偏悲观、赔率较高\n"
-            "- bearish：估值偏贵或周期高位，性价比一般甚至偏差\n"
-            "- neutral：尚可但缺乏非常好的赔率\n"
-            "confidence 用 0-100 的整数。\n"
-            "reasoning 需要详细完整（200-500 字符），必须包含：\n"
-            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-            "  2. 行业周期：当前处于行业周期的什么位置，未来趋势如何\n"
-            "  3. 公司质量：业务模式、竞争优势、管理团队等\n"
-            "  4. 赔率分析：当前定价是否合理，风险收益比如何\n"
-            "  5. 风险提示：需要注意的风险点\n"
-            "  6. 结论：明确的投资建议和理由\n"
-            "只返回 JSON。"
+                    f"You are {persona_name} ({persona_label}), a renowned Chinese value & macro-cycle investor.\n"
+                    f"Investing style: {investing_style}\n\n"
+                    "你要像邱国鹭写路演一样，结合行业周期和公司质量来判断。\n"
+                    "只根据提供的数据做判断，不要胡编历史或宏观数据。\n"
+                    "请按下面清单思考：\n"
+                    f"{checklist_text}\n\n"
+                    "输出规则：\n"
+                    "- bullish：当前定价明显偏悲观、赔率较高\n"
+                    "- bearish：估值偏贵或周期高位，性价比一般甚至偏差\n"
+                    "- neutral：尚可但缺乏非常好的赔率\n"
+                    "confidence 用 0-100 的整数。\n"
+                    "reasoning 需要详细完整（200-500 字符），必须包含：\n"
+                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+                    "  2. 行业周期：当前处于行业周期的什么位置，未来趋势如何\n"
+                    "  3. 公司质量：业务模式、竞争优势、管理团队等\n"
+                    "  4. 赔率分析：当前定价是否合理，风险收益比如何\n"
+                    "  5. 风险提示：需要注意的风险点\n"
+                    "  6. 结论：明确的投资建议和理由\n"
+                    "只返回 JSON。"
         )
         human_prompt = (
-            "Ticker: {ticker}\n\n"
-            "Facts (do not invent new data):\n"
-            "{facts}\n\n"
-            "Return exactly:\n"
-            "{{\n"
-            '  "signal": "bullish" | "bearish" | "neutral",\n'
-            '  "confidence": int,\n'
-            '  "reasoning": "short justification in Chinese"\n'
+                "Ticker: {ticker}\n\n"
+                "Facts (do not invent new data):\n"
+                "{facts}\n\n"
+                "Return exactly:\n"
+                "{{\n"
+                '  "signal": "bullish" | "bearish" | "neutral",\n'
+                '  "confidence": int,\n'
+                '  "reasoning": "short justification in Chinese"\n'
             "}}"
         )
         default_reasoning = "对周期和估值缺少足够把握，先控制仓位、耐心观察。"

@@ -108,6 +108,27 @@ def feng_liu_agent(state: AgentState, agent_id: str = "feng_liu_agent"):
                 facts["cn_balance_sheet_error"] = str(e)
 
         progress.update_status(agent_id, ticker, "Generating Feng Liu analysis")
+        # 获取语言设置以决定 checklist 的语言
+        language = state.get("metadata", {}).get("language") or "en"
+        is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+        
+        if is_chinese:
+            checklist = [
+                "基本面是否在缓慢改善（盈利、现金流、负债结构等）",
+                "当前估值是否明显低于历史或内在价值区间",
+                "市场情绪是否偏极端悲观，但数据并未那么糟糕",
+                "企业是否有自我修复能力，商业模式是否在变好",
+                "自己是否愿意忍受几年不涨甚至波动下跌",
+            ]
+        else:
+            checklist = [
+                "Are fundamentals slowly improving (earnings, cash flow, debt structure, etc.)",
+                "Is current valuation significantly below historical or intrinsic value range",
+                "Is market sentiment extremely pessimistic, but data is not that bad",
+                "Does the company have self-healing ability, is the business model improving",
+                "Am I willing to tolerate years of no growth or even volatility and decline",
+            ]
+        
         output = _generate_chinese_master_output(
             ticker=ticker,
             facts=facts,
@@ -117,13 +138,7 @@ def feng_liu_agent(state: AgentState, agent_id: str = "feng_liu_agent"):
                 "Contrarian and patient, seeks companies misunderstood by the market but with quietly improving fundamentals. "
                 "Willing to hold through long periods of sideways movement and volatility, as long as direction and intrinsic value are gradually improving."
             ),
-            checklist=[
-                "基本面是否在缓慢改善（盈利、现金流、负债结构等）",
-                "当前估值是否明显低于历史或内在价值区间",
-                "市场情绪是否偏极端悲观，但数据并未那么糟糕",
-                "企业是否有自我修复能力，商业模式是否在变好",
-                "自己是否愿意忍受几年不涨甚至波动下跌",
-            ],
+            checklist=checklist,
             agent_id=agent_id,
             state=state,
         )
@@ -168,35 +183,35 @@ def _generate_chinese_master_output(
     # 根据语言生成不同的 prompt
     if is_chinese:
         system_prompt = (
-            f"You are {persona_name} ({persona_label}), a renowned Chinese contrarian long-term investor.\n"
-            f"Investing style: {investing_style}\n\n"
+                    f"You are {persona_name} ({persona_label}), a renowned Chinese contrarian long-term investor.\n"
+                    f"Investing style: {investing_style}\n\n"
             "你更关心'预期差'和企业真实变化，而不是短期故事和情绪。\n"
-            "只看给你的数据，不要胡编股价、K线或新闻。\n"
-            "请按下面清单思考：\n"
-            f"{checklist_text}\n\n"
-            "输出规则：\n"
-            "- bullish：预期差大、内在在变好，愿意慢慢买入并长期持有\n"
-            "- bearish：看不到改善或预期过高，不愿意参与\n"
-            "- neutral：方向不明或好坏对半，看不出大的预期差\n"
-            "confidence 用 0-100 的整数。\n"
-            "reasoning 需要详细完整（200-500 字符），必须包含：\n"
-            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-            "  2. 预期差分析：市场预期与实际情况的差异\n"
-            "  3. 企业变化：业务、财务、管理等方面的真实变化\n"
-            "  4. 投资逻辑：为什么做出这个判断，基于哪些关键因素\n"
-            "  5. 风险提示：需要注意的风险点\n"
-            "  6. 结论：明确的投资建议和理由\n"
-            "只返回 JSON。"
+                    "只看给你的数据，不要胡编股价、K线或新闻。\n"
+                    "请按下面清单思考：\n"
+                    f"{checklist_text}\n\n"
+                    "输出规则：\n"
+                    "- bullish：预期差大、内在在变好，愿意慢慢买入并长期持有\n"
+                    "- bearish：看不到改善或预期过高，不愿意参与\n"
+                    "- neutral：方向不明或好坏对半，看不出大的预期差\n"
+                    "confidence 用 0-100 的整数。\n"
+                    "reasoning 需要详细完整（200-500 字符），必须包含：\n"
+                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+                    "  2. 预期差分析：市场预期与实际情况的差异\n"
+                    "  3. 企业变化：业务、财务、管理等方面的真实变化\n"
+                    "  4. 投资逻辑：为什么做出这个判断，基于哪些关键因素\n"
+                    "  5. 风险提示：需要注意的风险点\n"
+                    "  6. 结论：明确的投资建议和理由\n"
+                    "只返回 JSON。"
         )
         human_prompt = (
-            "Ticker: {ticker}\n\n"
-            "Facts (do not invent new data):\n"
-            "{facts}\n\n"
-            "Return exactly:\n"
-            "{{\n"
-            '  "signal": "bullish" | "bearish" | "neutral",\n'
-            '  "confidence": int,\n'
-            '  "reasoning": "short justification in Chinese"\n'
+                "Ticker: {ticker}\n\n"
+                "Facts (do not invent new data):\n"
+                "{facts}\n\n"
+                "Return exactly:\n"
+                "{{\n"
+                '  "signal": "bullish" | "bearish" | "neutral",\n'
+                '  "confidence": int,\n'
+                '  "reasoning": "short justification in Chinese"\n'
             "}}"
         )
         default_reasoning = "暂未看到明显预期差，用小仓位或继续观察更合适。"

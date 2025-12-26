@@ -107,6 +107,27 @@ def duan_yongping_agent(state: AgentState, agent_id: str = "duan_yongping_agent"
                 facts["cn_balance_sheet_error"] = str(e)
 
         progress.update_status(agent_id, ticker, "Generating Duan Yongping analysis")
+        # 获取语言设置以决定 checklist 的语言
+        language = state.get("metadata", {}).get("language") or "en"
+        is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+        
+        if is_chinese:
+            checklist = [
+                "商业模式是否足够简单易懂，未来10年仍然清晰",
+                "盈利能力是否稳定：ROE、净利率、毛利率是否持续较高",
+                "现金流质量是否好，自由现金流是否跟盈利匹配",
+                "负债是否温和、安全边际是否够",
+                "估值是否合理，给长期持有留出空间",
+            ]
+        else:
+            checklist = [
+                "Is the business model simple and understandable, still clear for the next 10 years",
+                "Is profitability stable: Are ROE, net margin, and gross margin consistently high",
+                "Is cash flow quality good, does free cash flow match earnings",
+                "Is debt moderate, is there sufficient margin of safety",
+                "Is valuation reasonable, leaving room for long-term holding",
+            ]
+        
         duan_output = _generate_chinese_master_output(
             ticker=ticker,
             facts=facts,
@@ -117,13 +138,7 @@ def duan_yongping_agent(state: AgentState, agent_id: str = "duan_yongping_agent"
                 "Emphasizes simple business models, reliable management, stable profitability and cash flows. "
                 "Willing to buy fewer but excellent companies at fair or slightly expensive prices and hold long-term."
             ),
-            checklist=[
-                "商业模式是否足够简单易懂，未来10年仍然清晰",
-                "盈利能力是否稳定：ROE、净利率、毛利率是否持续较高",
-                "现金流质量是否好，自由现金流是否跟盈利匹配",
-                "负债是否温和、安全边际是否够",
-                "估值是否合理，给长期持有留出空间",
-            ],
+            checklist=checklist,
             agent_id=agent_id,
             state=state,
         )
@@ -168,34 +183,34 @@ def _generate_chinese_master_output(
     # 根据语言生成不同的 prompt
     if is_chinese:
         system_prompt = (
-            f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
-            f"Investing style: {investing_style}\n\n"
-            "只根据提供的定量/定性信息做判断，不要自己幻想数据。\n"
-            "请用下面的检查清单来思考：\n"
-            f"{checklist_text}\n\n"
-            "输出规则：\n"
-            "- bullish：愿意耐心长期持有或加仓\n"
-            "- bearish：不愿意持有/会明显减仓\n"
-            "- neutral：观望或持有但不愿明显加仓\n"
-            "confidence 用 0-100 的整数。\n"
-            "reasoning 需要详细完整（200-500 字符），风格简洁、接地气，必须包含：\n"
-            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-            "  2. 企业质量：业务模式、品牌价值、护城河等\n"
-            "  3. 长期价值：为什么值得长期持有，核心逻辑是什么\n"
-            "  4. 估值判断：当前价格是否合理，性价比如何\n"
-            "  5. 风险提示：需要注意的风险点\n"
-            "  6. 结论：明确的投资建议和理由\n"
-            "只返回 JSON。"
+                    f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
+                    f"Investing style: {investing_style}\n\n"
+                    "只根据提供的定量/定性信息做判断，不要自己幻想数据。\n"
+                    "请用下面的检查清单来思考：\n"
+                    f"{checklist_text}\n\n"
+                    "输出规则：\n"
+                    "- bullish：愿意耐心长期持有或加仓\n"
+                    "- bearish：不愿意持有/会明显减仓\n"
+                    "- neutral：观望或持有但不愿明显加仓\n"
+                    "confidence 用 0-100 的整数。\n"
+                    "reasoning 需要详细完整（200-500 字符），风格简洁、接地气，必须包含：\n"
+                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+                    "  2. 企业质量：业务模式、品牌价值、护城河等\n"
+                    "  3. 长期价值：为什么值得长期持有，核心逻辑是什么\n"
+                    "  4. 估值判断：当前价格是否合理，性价比如何\n"
+                    "  5. 风险提示：需要注意的风险点\n"
+                    "  6. 结论：明确的投资建议和理由\n"
+                    "只返回 JSON。"
         )
         human_prompt = (
-            "Ticker: {ticker}\n\n"
-            "Facts (do not invent new data):\n"
-            "{facts}\n\n"
-            "Return exactly:\n"
-            "{{\n"
-            '  "signal": "bullish" | "bearish" | "neutral",\n'
-            '  "confidence": int,\n'
-            '  "reasoning": "short justification in Chinese"\n'
+                "Ticker: {ticker}\n\n"
+                "Facts (do not invent new data):\n"
+                "{facts}\n\n"
+                "Return exactly:\n"
+                "{{\n"
+                '  "signal": "bullish" | "bearish" | "neutral",\n'
+                '  "confidence": int,\n'
+                '  "reasoning": "short justification in Chinese"\n'
             "}}"
         )
         default_reasoning = "数据有限，暂时观望。"

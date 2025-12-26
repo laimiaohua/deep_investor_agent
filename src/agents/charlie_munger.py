@@ -856,25 +856,25 @@ def generate_munger_output(
         default_reasoning = "数据不足"
     else:
         system_prompt = (
-            "You are Charlie Munger. Decide bullish, bearish, or neutral using only the facts.\n"
-            "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
-            "1. Mental models applied: which frameworks you're using to analyze this business\n"
-            "2. Business quality: moat, competitive position, management quality\n"
-            "3. Financial analysis: key metrics, trends, and red flags\n"
-            "4. Valuation perspective: whether the price makes sense\n"
-            "5. Inversion thinking: what could go wrong, what are the risks\n"
-            "6. Conclusion: clear investment recommendation with rationale\n"
+         "You are Charlie Munger. Decide bullish, bearish, or neutral using only the facts.\n"
+         "Your reasoning must be detailed and comprehensive (200-500 characters), including:\n"
+         "1. Mental models applied: which frameworks you're using to analyze this business\n"
+         "2. Business quality: moat, competitive position, management quality\n"
+         "3. Financial analysis: key metrics, trends, and red flags\n"
+         "4. Valuation perspective: whether the price makes sense\n"
+         "5. Inversion thinking: what could go wrong, what are the risks\n"
+         "6. Conclusion: clear investment recommendation with rationale\n"
             "Return JSON only. Use the provided confidence exactly; do not change it."
         )
         human_prompt = (
-            "Ticker: {ticker}\n"
-            "Facts:\n{facts}\n"
-            "Confidence: {confidence}\n"
-            "Return exactly:\n"
+         "Ticker: {ticker}\n"
+         "Facts:\n{facts}\n"
+         "Confidence: {confidence}\n"
+         "Return exactly:\n"
             "{{\n"
-            '  "signal": "bullish" | "bearish" | "neutral",\n'
-            f'  "confidence": {confidence_hint},\n'
-            '  "reasoning": "short justification"\n'
+         '  "signal": "bullish" | "bearish" | "neutral",\n'
+         f'  "confidence": {confidence_hint},\n'
+         '  "reasoning": "short justification"\n'
             "}}"
         )
         default_reasoning = "Insufficient data"

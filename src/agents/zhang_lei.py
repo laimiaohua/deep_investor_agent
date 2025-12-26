@@ -105,6 +105,27 @@ def zhang_lei_agent(state: AgentState, agent_id: str = "zhang_lei_agent"):
                 facts["cn_balance_sheet_error"] = str(e)
 
         progress.update_status(agent_id, ticker, "Generating Zhang Lei analysis")
+        # 获取语言设置以决定 checklist 的语言
+        language = state.get("metadata", {}).get("language") or "en"
+        is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw", "zh_hans", "zh_hant"])
+        
+        if is_chinese:
+            checklist = [
+                "收入、利润和自由现金流是否持续多年双位数增长",
+                "商业模式是否有网络效应、规模效应或技术壁垒",
+                "管理层是否重视长期投入，而不是短期利润冲高",
+                "估值相对于成长和行业空间是否可以接受",
+                "是否具备全球视野或行业龙头潜质",
+            ]
+        else:
+            checklist = [
+                "Are revenue, profit, and free cash flow consistently growing at double-digit rates for multiple years",
+                "Does the business model have network effects, scale effects, or technological barriers",
+                "Does management focus on long-term investment rather than short-term profit maximization",
+                "Is valuation acceptable relative to growth and industry potential",
+                "Does the company have global vision or industry leadership potential",
+            ]
+        
         output = _generate_chinese_master_output(
             ticker=ticker,
             facts=facts,
@@ -115,13 +136,7 @@ def zhang_lei_agent(state: AgentState, agent_id: str = "zhang_lei_agent"):
                 "Seeks companies with global competitiveness, excellent management, and long-term growth potential. "
                 "Willing to take significant positions at reasonable or slightly expensive prices."
             ),
-            checklist=[
-                "收入、利润和自由现金流是否持续多年双位数增长",
-                "商业模式是否有网络效应、规模效应或技术壁垒",
-                "管理层是否重视长期投入，而不是短期利润冲高",
-                "估值相对于成长和行业空间是否可以接受",
-                "是否具备全球视野或行业龙头潜质",
-            ],
+            checklist=checklist,
             agent_id=agent_id,
             state=state,
         )
@@ -166,34 +181,34 @@ def _generate_chinese_master_output(
     # 根据语言生成不同的 prompt
     if is_chinese:
         system_prompt = (
-            f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
-            f"Investing style: {investing_style}\n\n"
-            "只根据提供的定量/定性信息做判断，不要自己幻想数据。\n"
-            "请用下面的检查清单来思考：\n"
-            f"{checklist_text}\n\n"
-            "输出规则：\n"
-            "- bullish：愿意长期重仓或显著加仓\n"
-            "- bearish：不愿持有/会明显减仓\n"
-            "- neutral：观望或小仓位试错\n"
-            "confidence 用 0-100 的整数。\n"
-            "reasoning 需要详细完整（200-500 字符），要求专业但通俗，必须包含：\n"
-            "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
-            "  2. 企业质量：业务模式、竞争优势、复利能力等\n"
-            "  3. 长期复利：为什么这家公司能持续创造价值，复利逻辑是什么\n"
+                    f"You are {persona_name} ({persona_label}), a renowned Chinese long-term investor.\n"
+                    f"Investing style: {investing_style}\n\n"
+                    "只根据提供的定量/定性信息做判断，不要自己幻想数据。\n"
+                    "请用下面的检查清单来思考：\n"
+                    f"{checklist_text}\n\n"
+                    "输出规则：\n"
+                    "- bullish：愿意长期重仓或显著加仓\n"
+                    "- bearish：不愿持有/会明显减仓\n"
+                    "- neutral：观望或小仓位试错\n"
+                    "confidence 用 0-100 的整数。\n"
+                    "reasoning 需要详细完整（200-500 字符），要求专业但通俗，必须包含：\n"
+                    "  1. 核心分析依据：具体的数据指标、财务表现、估值水平等\n"
+                    "  2. 企业质量：业务模式、竞争优势、复利能力等\n"
+                    "  3. 长期复利：为什么这家公司能持续创造价值，复利逻辑是什么\n"
             "  4. 估值判断：当前价格是否合理，是否符合'好公司+好价格+长时间'的标准\n"
-            "  5. 风险提示：需要注意的风险点\n"
-            "  6. 结论：明确的投资建议和理由\n"
-            "只返回 JSON。"
+                    "  5. 风险提示：需要注意的风险点\n"
+                    "  6. 结论：明确的投资建议和理由\n"
+                    "只返回 JSON。"
         )
         human_prompt = (
-            "Ticker: {ticker}\n\n"
-            "Facts (do not invent new data):\n"
-            "{facts}\n\n"
-            "Return exactly:\n"
-            "{{\n"
-            '  "signal": "bullish" | "bearish" | "neutral",\n'
-            '  "confidence": int,\n'
-            '  "reasoning": "short justification in Chinese"\n'
+                "Ticker: {ticker}\n\n"
+                "Facts (do not invent new data):\n"
+                "{facts}\n\n"
+                "Return exactly:\n"
+                "{{\n"
+                '  "signal": "bullish" | "bearish" | "neutral",\n'
+                '  "confidence": int,\n'
+                '  "reasoning": "short justification in Chinese"\n'
             "}}"
         )
         default_reasoning = "数据有限，看不清未来复利能力，暂时观望。"
