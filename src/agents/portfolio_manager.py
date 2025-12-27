@@ -208,6 +208,18 @@ def generate_trading_decision(
     # Build compact payloads only for tickers sent to LLM
     compact_signals = _compact_signals({t: signals_by_ticker.get(t, {}) for t in tickers_for_llm})
     compact_allowed = {t: allowed_actions_full[t] for t in tickers_for_llm}
+    
+    # Build current positions info for context
+    positions = portfolio.get("positions", {}) or {}
+    compact_positions = {}
+    for t in tickers_for_llm:
+        pos = positions.get(t, {"long": 0, "short": 0})
+        long_shares = int(pos.get("long", 0) or 0)
+        short_shares = int(pos.get("short", 0) or 0)
+        compact_positions[t] = {
+            "long": long_shares,
+            "short": short_shares
+        }
 
     # Enhanced prompt template with detailed analysis requirements
     template = ChatPromptTemplate.from_messages(
@@ -217,18 +229,25 @@ def generate_trading_decision(
                 "You are a professional portfolio manager making final trading decisions.\n\n"
                 "Your responsibilities:\n"
                 "1. Analyze all analyst signals for each ticker (bullish/bearish/neutral with confidence levels)\n"
-                "2. Synthesize multiple analyst opinions into a coherent investment thesis\n"
-                "3. Make trading decisions (buy/sell/short/cover/hold) with appropriate quantities\n"
-                "4. Provide comprehensive reasoning that includes:\n"
+                "2. Consider current portfolio positions (if any) for each ticker\n"
+                "3. Synthesize multiple analyst opinions into a coherent investment thesis\n"
+                "4. Make trading decisions (buy/sell/short/cover/hold) with appropriate quantities\n"
+                "5. Provide comprehensive reasoning that includes:\n"
                 "   - Summary of analyst consensus or divergence\n"
+                "   - Current position status and how it affects your decision\n"
                 "   - Key factors driving the decision (valuation, growth, risk, sentiment, etc.)\n"
                 "   - Specific metrics or data points that support your decision\n"
                 "   - Risk considerations and position sizing rationale\n"
                 "   - Expected outcome and time horizon\n\n"
+                "IMPORTANT - Signal-Action Alignment:\n"
+                "- If analysts are BULLISH but you decide to SELL: You MUST clearly explain why (e.g., profit-taking, position rebalancing, price already reflects bullish expectations, risk management, etc.)\n"
+                "- If analysts are BEARISH but you decide to BUY: You MUST clearly explain why (e.g., contrarian opportunity, value play, position averaging, etc.)\n"
+                "- If your action contradicts analyst signals, your reasoning MUST explicitly address this contradiction\n\n"
                 "Guidelines:\n"
                 "- Pick one allowed action per ticker and a quantity ≤ the max allowed\n"
                 "- Your reasoning should be detailed (200-500 characters), providing complete analysis basis and conclusion\n"
                 "- Reference specific analyst signals and their confidence levels in your reasoning\n"
+                "- Always mention current position status (if holding, state the quantity)\n"
                 "- Explain why you chose this action over alternatives\n"
                 "- Include quantitative support when available (e.g., '3 out of 5 analysts are bullish with avg confidence 75%')\n"
                 "- No cash or margin calculations needed (already handled)\n"
@@ -237,6 +256,7 @@ def generate_trading_decision(
             (
                 "human",
                 "Analyst Signals for each ticker:\n{signals}\n\n"
+                "Current Portfolio Positions:\n{positions}\n\n"
                 "Allowed Actions and Maximum Quantities:\n{allowed}\n\n"
                 "For each ticker, provide:\n"
                 "1. A trading action (buy/sell/short/cover/hold)\n"
@@ -244,9 +264,11 @@ def generate_trading_decision(
                 "3. Your confidence level (0-100)\n"
                 "4. Detailed reasoning explaining:\n"
                 "   - How you synthesized the analyst signals\n"
+                "   - Current position status and its impact on your decision\n"
                 "   - What key factors led to this decision\n"
                 "   - Specific evidence supporting your conclusion\n"
-                "   - Risk considerations\n\n"
+                "   - Risk considerations\n"
+                "   - If your action contradicts analyst signals (e.g., analysts bullish but you sell), you MUST explicitly explain why\n\n"
                 "Return JSON format:\n"
                 "{{\n"
                 '  "decisions": {{\n'
@@ -264,6 +286,7 @@ def generate_trading_decision(
 
     prompt_data = {
         "signals": json.dumps(compact_signals, separators=(",", ":"), ensure_ascii=False),
+        "positions": json.dumps(compact_positions, separators=(",", ":"), ensure_ascii=False),
         "allowed": json.dumps(compact_allowed, separators=(",", ":"), ensure_ascii=False),
     }
     prompt = template.invoke(prompt_data)

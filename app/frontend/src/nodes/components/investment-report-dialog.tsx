@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/table';
 import { extractBaseAgentKey } from '@/data/node-mappings';
 import { createAgentDisplayNames } from '@/utils/text-utils';
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Minus, Info } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTranslation } from 'react-i18next';
@@ -186,6 +186,17 @@ export function InvestmentReportDialog({
                     })}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+            {/* Info Note about Action-Signal Relationship */}
+            <Card className="mt-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
+                    {t('nodes.output.actionSignalNote')}
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </section>
