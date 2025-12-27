@@ -178,6 +178,10 @@ export function InvestmentReportDialog({
                         : shortShares > 0 
                         ? `${shortShares} (Short)`
                         : '0';
+                      // For "hold" action, show current position quantity instead of 0
+                      const quantityDisplay = decision.action?.toLowerCase() === 'hold' 
+                        ? (longShares > 0 ? longShares : shortShares > 0 ? shortShares : 0)
+                        : decision.quantity;
                       return (
                         <TableRow key={ticker}>
                           <TableCell className="font-medium">{ticker}</TableCell>
@@ -189,7 +193,7 @@ export function InvestmentReportDialog({
                               <span className="capitalize">{translateAction(decision.action)}</span>
                             </div>
                           </TableCell>
-                          <TableCell>{decision.quantity}</TableCell>
+                          <TableCell>{quantityDisplay}</TableCell>
                           <TableCell>{getConfidenceBadge(decision.confidence)}</TableCell>
                         </TableRow>
                       );
@@ -222,7 +226,17 @@ export function InvestmentReportDialog({
                       <div className="flex items-center gap-1">
                         {getActionIcon(outputNodeData.decisions[ticker].action as ActionType)}
                         <span className="text-sm font-normal text-muted-foreground">
-                          {translateAction(outputNodeData.decisions[ticker].action)} {outputNodeData.decisions[ticker].quantity} {t('nodes.output.shares')}
+                          {(() => {
+                            const decision = outputNodeData.decisions[ticker];
+                            const position = outputNodeData.current_positions?.[ticker];
+                            const longShares = position?.long || 0;
+                            const shortShares = position?.short || 0;
+                            // For "hold" action, show current position quantity instead of 0
+                            const quantityDisplay = decision.action?.toLowerCase() === 'hold' 
+                              ? (longShares > 0 ? longShares : shortShares > 0 ? shortShares : 0)
+                              : decision.quantity;
+                            return `${translateAction(decision.action)} ${quantityDisplay} ${t('nodes.output.shares')}`;
+                          })()}
                         </span>
                       </div>
                     </div>

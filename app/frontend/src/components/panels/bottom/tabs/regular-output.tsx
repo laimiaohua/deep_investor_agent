@@ -81,6 +81,10 @@ function SummarySection({ outputData }: { outputData: any }) {
                 : shortShares > 0 
                 ? `${shortShares} (Short)`
                 : '0';
+              // For "hold" action, show current position quantity instead of 0
+              const quantityDisplay = decision.action?.toLowerCase() === 'hold' 
+                ? (longShares > 0 ? longShares : shortShares > 0 ? shortShares : 0)
+                : (decision.quantity || 0);
               return (
                 <TableRow key={ticker}>
                   <TableCell className="font-medium">{ticker}</TableCell>
@@ -90,7 +94,7 @@ function SummarySection({ outputData }: { outputData: any }) {
                       {decision.action?.toUpperCase() || 'UNKNOWN'}
                     </span>
                   </TableCell>
-                  <TableCell>{decision.quantity || 0}</TableCell>
+                  <TableCell>{quantityDisplay}</TableCell>
                   <TableCell>{decision.confidence?.toFixed(1) || 0}%</TableCell>
                 </TableRow>
               );
@@ -222,7 +226,18 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
                     </TableRow>
                     <TableRow>
                       <TableCell className="font-medium">{t('nodes.output.quantity')}</TableCell>
-                      <TableCell>{decision.quantity || 0}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const position = outputData.current_positions?.[ticker];
+                          const longShares = position?.long || 0;
+                          const shortShares = position?.short || 0;
+                          // For "hold" action, show current position quantity instead of 0
+                          if (decision.action?.toLowerCase() === 'hold') {
+                            return longShares > 0 ? longShares : shortShares > 0 ? shortShares : 0;
+                          }
+                          return decision.quantity || 0;
+                        })()}
+                      </TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell className="font-medium">{t('nodes.output.confidence')}</TableCell>
