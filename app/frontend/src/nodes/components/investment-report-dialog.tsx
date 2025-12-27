@@ -160,6 +160,7 @@ export function InvestmentReportDialog({
                     <TableRow>
                       <TableHead>{t('nodes.output.ticker')}</TableHead>
                       <TableHead>{t('nodes.output.price')}</TableHead>
+                      <TableHead>{t('nodes.output.currentPosition')}</TableHead>
                       <TableHead>{t('nodes.output.action')}</TableHead>
                       <TableHead>{t('nodes.output.quantity')}</TableHead>
                       <TableHead>{t('nodes.output.confidence')}</TableHead>
@@ -169,10 +170,19 @@ export function InvestmentReportDialog({
                     {tickers.map(ticker => {
                       const decision = outputNodeData.decisions[ticker];
                       const currentPrice = outputNodeData.current_prices?.[ticker] || 'N/A';
+                      const position = outputNodeData.current_positions?.[ticker];
+                      const longShares = position?.long || 0;
+                      const shortShares = position?.short || 0;
+                      const positionDisplay = longShares > 0 
+                        ? `${longShares} (Long)`
+                        : shortShares > 0 
+                        ? `${shortShares} (Short)`
+                        : '0';
                       return (
                         <TableRow key={ticker}>
                           <TableCell className="font-medium">{ticker}</TableCell>
                           <TableCell>${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : currentPrice}</TableCell>
+                          <TableCell>{positionDisplay}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getActionIcon(decision.action as ActionType)}

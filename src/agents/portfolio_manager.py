@@ -239,10 +239,25 @@ def generate_trading_decision(
                 "   - Specific metrics or data points that support your decision\n"
                 "   - Risk considerations and position sizing rationale\n"
                 "   - Expected outcome and time horizon\n\n"
-                "IMPORTANT - Signal-Action Alignment:\n"
-                "- If analysts are BULLISH but you decide to SELL: You MUST clearly explain why (e.g., profit-taking, position rebalancing, price already reflects bullish expectations, risk management, etc.)\n"
-                "- If analysts are BEARISH but you decide to BUY: You MUST clearly explain why (e.g., contrarian opportunity, value play, position averaging, etc.)\n"
-                "- If your action contradicts analyst signals, your reasoning MUST explicitly address this contradiction\n\n"
+                "CRITICAL - Signal-to-Action Mapping Rules (PRIORITY ORDER - THESE ARE MANDATORY):\n"
+                "1. PRIMARY RULE: Follow analyst signals as the primary guide:\n"
+                "   - If majority of analysts are BULLISH → Action should be BUY (if not holding) or HOLD/INCREASE (if already holding)\n"
+                "   - If majority of analysts are BEARISH → Action should be SELL (if holding) or SHORT (if not holding)\n"
+                "   - ⚠️ MANDATORY: If ALL or majority of analysts are NEUTRAL → Action MUST be HOLD (regardless of current position)\n"
+                "   - If analysts are mixed (some bullish, some bearish) → Use weighted average confidence to decide\n\n"
+                "2. EXCEPTION RULE: Only deviate from analyst signals if you have STRONG, SPECIFIC reasons:\n"
+                "   - BULLISH signal but SELL: Only if (a) already holding significant position AND (b) profit-taking/rebalancing needed AND (c) price already reflects bullish expectations\n"
+                "   - BEARISH signal but BUY: Only if (a) contrarian opportunity with strong value case AND (b) risk-reward is favorable\n"
+                "   - ⚠️ CRITICAL: NEUTRAL signals CANNOT be overridden - they MUST result in HOLD action\n"
+                "   - If you deviate (except for NEUTRAL→HOLD which is mandatory), you MUST provide detailed justification in reasoning\n\n"
+                "3. POSITION-AWARE DECISIONS:\n"
+                "   - If NOT holding and analysts are BULLISH → BUY (unless exception rule applies)\n"
+                "   - If NOT holding and analysts are NEUTRAL → HOLD (no action) - MANDATORY\n"
+                "   - If NOT holding and analysts are BEARISH → SHORT or HOLD (avoid buying)\n"
+                "   - If ALREADY holding and analysts are BULLISH → HOLD or BUY more (increase position)\n"
+                "   - If ALREADY holding and analysts are NEUTRAL → HOLD (maintain position) - MANDATORY, DO NOT SELL\n"
+                "   - If ALREADY holding and analysts are BEARISH → SELL (reduce or exit position)\n\n"
+                "⚠️ ABSOLUTE RULE: When analysts are NEUTRAL, the action MUST be HOLD. Selling on neutral signals is FORBIDDEN.\n\n"
                 "Guidelines:\n"
                 "- Pick one allowed action per ticker and a quantity ≤ the max allowed\n"
                 "- Your reasoning should be detailed (200-500 characters), providing complete analysis basis and conclusion\n"
@@ -258,17 +273,26 @@ def generate_trading_decision(
                 "Analyst Signals for each ticker:\n{signals}\n\n"
                 "Current Portfolio Positions:\n{positions}\n\n"
                 "Allowed Actions and Maximum Quantities:\n{allowed}\n\n"
+                "Decision Process for each ticker:\n"
+                "STEP 1: Calculate analyst signal consensus:\n"
+                "   - Count bullish vs bearish vs neutral signals\n"
+                "   - Calculate weighted average confidence (weight by confidence level)\n"
+                "   - Determine majority signal (bullish/bearish/neutral)\n\n"
+                "STEP 2: Check current position:\n"
+                "   - If NOT holding: Follow signal-to-action mapping (bullish→buy, neutral→hold, bearish→short/hold)\n"
+                "   - If ALREADY holding: Adjust based on signal (bullish→hold/buy more, neutral→hold, bearish→sell)\n\n"
+                "STEP 3: Only deviate if you have STRONG, SPECIFIC reasons (see exception rule above)\n\n"
                 "For each ticker, provide:\n"
-                "1. A trading action (buy/sell/short/cover/hold)\n"
+                "1. A trading action (buy/sell/short/cover/hold) - MUST align with analyst signals unless exception applies\n"
                 "2. The quantity (must be ≤ max allowed)\n"
                 "3. Your confidence level (0-100)\n"
                 "4. Detailed reasoning explaining:\n"
-                "   - How you synthesized the analyst signals\n"
+                "   - Analyst signal consensus (e.g., '3 out of 5 analysts are bullish with avg confidence 75%')\n"
+                "   - How you applied the signal-to-action mapping rules\n"
                 "   - Current position status and its impact on your decision\n"
-                "   - What key factors led to this decision\n"
-                "   - Specific evidence supporting your conclusion\n"
-                "   - Risk considerations\n"
-                "   - If your action contradicts analyst signals (e.g., analysts bullish but you sell), you MUST explicitly explain why\n\n"
+                "   - If you deviated from the primary rule, the STRONG, SPECIFIC reason why\n"
+                "   - Key factors supporting your decision\n"
+                "   - Risk considerations\n\n"
                 "Return JSON format:\n"
                 "{{\n"
                 '  "decisions": {{\n'
@@ -312,4 +336,46 @@ def generate_trading_decision(
     # Merge prefilled holds with LLM results
     merged = dict(prefilled_decisions)
     merged.update(llm_out.decisions)
+    
+    # Post-process: Enforce strict rule that NEUTRAL signals must result in HOLD
+    # This ensures consistency even if LLM doesn't follow the rules perfectly
+    for ticker in tickers_for_llm:
+        if ticker not in merged:
+            continue
+            
+        # Get analyst signals for this ticker
+        ticker_signals = signals_by_ticker.get(ticker, {})
+        if not ticker_signals:
+            continue
+        
+        # Count signal types
+        bullish_count = 0
+        bearish_count = 0
+        neutral_count = 0
+        
+        for agent, signal_data in ticker_signals.items():
+            sig = signal_data.get("sig") or signal_data.get("signal")
+            if sig:
+                sig_lower = sig.lower()
+                if sig_lower == "bullish":
+                    bullish_count += 1
+                elif sig_lower == "bearish":
+                    bearish_count += 1
+                elif sig_lower == "neutral":
+                    neutral_count += 1
+        
+        total_signals = bullish_count + bearish_count + neutral_count
+        
+        # If all signals are neutral, MUST hold regardless of current position
+        if total_signals > 0 and neutral_count == total_signals and bullish_count == 0 and bearish_count == 0:
+            current_decision = merged[ticker]
+            if current_decision.action != "hold":
+                # Override the decision to hold
+                merged[ticker] = PortfolioDecision(
+                    action="hold",
+                    quantity=0,
+                    confidence=current_decision.confidence,
+                    reasoning=f"All {neutral_count} analyst(s) are NEUTRAL. Following rule: NEUTRAL signals → HOLD. Original decision was {current_decision.action}, but corrected to HOLD per system rules."
+                )
+    
     return PortfolioManagerOutput(decisions=merged)

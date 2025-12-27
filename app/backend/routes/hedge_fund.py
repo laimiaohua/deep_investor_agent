@@ -127,11 +127,24 @@ async def run(request_data: HedgeFundRequest, request: Request, db: Session = De
                     return
 
                 # Send the final result
+                # Extract current portfolio positions for display
+                result_portfolio = result.get("data", {}).get("portfolio", {})
+                current_positions = {}
+                if result_portfolio and "positions" in result_portfolio:
+                    for ticker, position in result_portfolio["positions"].items():
+                        current_positions[ticker] = {
+                            "long": position.get("long", 0),
+                            "short": position.get("short", 0),
+                            "long_cost_basis": position.get("long_cost_basis", 0.0),
+                            "short_cost_basis": position.get("short_cost_basis", 0.0),
+                        }
+                
                 final_data = CompleteEvent(
                     data={
                         "decisions": parse_hedge_fund_response(result.get("messages", [])[-1].content),
                         "analyst_signals": result.get("data", {}).get("analyst_signals", {}),
                         "current_prices": result.get("data", {}).get("current_prices", {}),
+                        "current_positions": current_positions,
                     }
                 )
                 yield final_data.to_sse()

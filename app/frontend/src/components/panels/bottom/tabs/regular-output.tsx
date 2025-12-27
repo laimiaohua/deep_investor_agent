@@ -65,24 +65,36 @@ function SummarySection({ outputData }: { outputData: any }) {
           <TableHeader>
             <TableRow>
               <TableHead>{t('nodes.output.ticker')}</TableHead>
+              <TableHead>{t('nodes.output.currentPosition')}</TableHead>
               <TableHead>{t('nodes.output.action')}</TableHead>
               <TableHead>{t('nodes.output.quantity')}</TableHead>
               <TableHead>{t('nodes.output.confidence')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {Object.entries(outputData.decisions).map(([ticker, decision]: [string, any]) => (
-              <TableRow key={ticker}>
-                <TableCell className="font-medium">{ticker}</TableCell>
-                <TableCell>
-                  <span className={cn("font-medium", getActionColor(decision.action || ''))}>
-                    {decision.action?.toUpperCase() || 'UNKNOWN'}
-                  </span>
-                </TableCell>
-                <TableCell>{decision.quantity || 0}</TableCell>
-                <TableCell>{decision.confidence?.toFixed(1) || 0}%</TableCell>
-              </TableRow>
-            ))}
+            {Object.entries(outputData.decisions).map(([ticker, decision]: [string, any]) => {
+              const position = outputData.current_positions?.[ticker];
+              const longShares = position?.long || 0;
+              const shortShares = position?.short || 0;
+              const positionDisplay = longShares > 0 
+                ? `${longShares} (Long)`
+                : shortShares > 0 
+                ? `${shortShares} (Short)`
+                : '0';
+              return (
+                <TableRow key={ticker}>
+                  <TableCell className="font-medium">{ticker}</TableCell>
+                  <TableCell>{positionDisplay}</TableCell>
+                  <TableCell>
+                    <span className={cn("font-medium", getActionColor(decision.action || ''))}>
+                      {decision.action?.toUpperCase() || 'UNKNOWN'}
+                    </span>
+                  </TableCell>
+                  <TableCell>{decision.quantity || 0}</TableCell>
+                  <TableCell>{decision.confidence?.toFixed(1) || 0}%</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent>
@@ -190,6 +202,22 @@ function AnalysisResultsSection({ outputData }: { outputData: any }) {
                         <span className={cn("font-medium", getActionColor(decision.action || ''))}>
                           {decision.action?.toUpperCase() || 'UNKNOWN'}
                         </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">{t('nodes.output.currentPosition')}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const position = outputData.current_positions?.[ticker];
+                          const longShares = position?.long || 0;
+                          const shortShares = position?.short || 0;
+                          if (longShares > 0) {
+                            return `${longShares} (Long)`;
+                          } else if (shortShares > 0) {
+                            return `${shortShares} (Short)`;
+                          }
+                          return '0';
+                        })()}
                       </TableCell>
                     </TableRow>
                     <TableRow>

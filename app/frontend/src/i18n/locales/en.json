@@ -202,6 +202,7 @@
       "value": "Value",
       "action": "Action",
       "quantity": "Quantity",
+      "currentPosition": "Current Position",
       "ticker": "Ticker",
       "actionBuy": "Buy",
       "actionSell": "Sell",
@@ -219,7 +220,7 @@
       "analystSignals": "Analyst Signals",
       "price": "Price",
       "shares": "shares",
-      "actionSignalNote": "Note: Trading decisions (buy/sell) are based not only on analyst signals (bullish/bearish), but also consider current positions, risk management, and position rebalancing. Even if analysts are bullish, the portfolio manager may recommend selling if the stock is already held (e.g., profit-taking, position adjustment). Please check the reasoning for detailed explanations."
+      "actionSignalNote": "Trading Decision Logic: The system prioritizes following analyst signals. Bullish → Buy (if not holding) or Hold/Increase (if holding); Neutral → Hold; Bearish → Sell (if holding) or Short/Hold (if not holding). The system only deviates from analyst signals in exceptional cases (e.g., already holding and profit-taking needed, price already reflects expectations), which will be explained in detail in the reasoning."
     },
     "agents": {
       "warrenBuffettName": "Warren Buffett",
