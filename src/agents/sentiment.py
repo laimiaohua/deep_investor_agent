@@ -4,7 +4,7 @@ from src.utils.progress import progress
 import pandas as pd
 import numpy as np
 import json
-from src.utils.api_key import get_api_key_from_state
+from src.utils.api_key import get_api_key_from_state, get_use_openbb_from_state
 from src.tools.api import get_insider_trades, get_company_news
 
 
@@ -16,6 +16,8 @@ def sentiment_analyst_agent(state: AgentState, agent_id: str = "sentiment_analys
     end_date = data.get("end_date")
     tickers = data.get("tickers")
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    massive_api_key = get_api_key_from_state(state, "MASSIVE_API_KEY")
+    use_openbb = get_use_openbb_from_state(state)
     # Initialize sentiment analysis for each ticker
     sentiment_analysis = {}
 
@@ -28,6 +30,7 @@ def sentiment_analyst_agent(state: AgentState, agent_id: str = "sentiment_analys
             end_date=end_date,
             limit=1000,
             api_key=api_key,
+            massive_api_key=massive_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Analyzing trading patterns")
@@ -39,7 +42,7 @@ def sentiment_analyst_agent(state: AgentState, agent_id: str = "sentiment_analys
         progress.update_status(agent_id, ticker, "Fetching company news")
 
         # Get the company news
-        company_news = get_company_news(ticker, end_date, limit=100, api_key=api_key)
+        company_news = get_company_news(ticker, end_date, limit=100, api_key=api_key, massive_api_key=massive_api_key, use_openbb=use_openbb)
 
         # Get the sentiment from the company news
         sentiment = pd.Series([n.sentiment for n in company_news]).dropna()

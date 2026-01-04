@@ -11,7 +11,7 @@ from src.tools.api import (
     get_market_cap,
     get_cn_balance_sheet_line_items,
 )
-from src.utils.api_key import get_api_key_from_state
+from src.utils.api_key import get_api_key_from_state, get_use_openbb_from_state
 from src.utils.llm import call_llm
 from src.utils.progress import progress
 
@@ -47,7 +47,9 @@ def feng_liu_agent(state: AgentState, agent_id: str = "feng_liu_agent"):
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    massive_api_key = get_api_key_from_state(state, "MASSIVE_API_KEY")
     cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
+    use_openbb = get_use_openbb_from_state(state)
 
     analysis: dict[str, dict] = {}
 
@@ -61,6 +63,8 @@ def feng_liu_agent(state: AgentState, agent_id: str = "feng_liu_agent"):
             limit=4,
             api_key=api_key,
             cn_api_key=cn_api_key,
+            massive_api_key=massive_api_key,
+            use_openbb=use_openbb,
         )
 
         if not metrics:
@@ -70,7 +74,7 @@ def feng_liu_agent(state: AgentState, agent_id: str = "feng_liu_agent"):
         latest = metrics[0]
 
         progress.update_status(agent_id, ticker, "Getting market cap")
-        market_cap = get_market_cap(ticker, end_date, api_key=api_key)
+        market_cap = get_market_cap(ticker, end_date, api_key=api_key, massive_api_key=massive_api_key, use_openbb=use_openbb)
 
         facts: dict = {
             "ticker": ticker,

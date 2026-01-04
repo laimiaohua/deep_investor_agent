@@ -18,7 +18,7 @@ from src.tools.api import (
 )
 from src.utils.llm import call_llm
 from src.utils.progress import progress
-from src.utils.api_key import get_api_key_from_state
+from src.utils.api_key import get_api_key_from_state, get_use_openbb_from_state
 
 
 class MichaelBurrySignal(BaseModel):
@@ -33,7 +33,9 @@ def michael_burry_agent(state: AgentState, agent_id: str = "michael_burry_agent"
     """Analyse stocks using Michael Burry's deep‑value, contrarian framework."""
     progress.set_language(state.get("metadata", {}).get("language") or "en")
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    massive_api_key = get_api_key_from_state(state, "MASSIVE_API_KEY")
     cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
+    use_openbb = get_use_openbb_from_state(state)
     data = state["data"]
     end_date: str = data["end_date"]  # YYYY‑MM‑DD
     tickers: list[str] = data["tickers"]
@@ -49,7 +51,7 @@ def michael_burry_agent(state: AgentState, agent_id: str = "michael_burry_agent"
         # Fetch raw data
         # ------------------------------------------------------------------
         progress.update_status(agent_id, ticker, "Fetching financial metrics")
-        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5, api_key=api_key, cn_api_key=cn_api_key)
+        metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5, api_key=api_key, cn_api_key=cn_api_key, massive_api_key=massive_api_key, use_openbb=use_openbb)
 
         progress.update_status(agent_id, ticker, "Fetching line items")
         line_items = search_line_items(
@@ -67,16 +69,17 @@ def michael_burry_agent(state: AgentState, agent_id: str = "michael_burry_agent"
             end_date,
             api_key=api_key,
             cn_api_key=cn_api_key,
+            massive_api_key=massive_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Fetching insider trades")
-        insider_trades = get_insider_trades(ticker, end_date=end_date, start_date=start_date)
+        insider_trades = get_insider_trades(ticker, end_date=end_date, start_date=start_date, api_key=api_key, massive_api_key=massive_api_key)
 
         progress.update_status(agent_id, ticker, "Fetching company news")
-        news = get_company_news(ticker, end_date=end_date, start_date=start_date, limit=250)
+        news = get_company_news(ticker, end_date=end_date, start_date=start_date, limit=250, api_key=api_key, massive_api_key=massive_api_key)
 
         progress.update_status(agent_id, ticker, "Fetching market cap")
-        market_cap = get_market_cap(ticker, end_date, api_key=api_key)
+        market_cap = get_market_cap(ticker, end_date, api_key=api_key, massive_api_key=massive_api_key)
 
         # ------------------------------------------------------------------
         # Run sub‑analyses

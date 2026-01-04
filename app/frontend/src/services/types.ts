@@ -48,6 +48,8 @@ export interface BaseHedgeFundRequest {
   language?: string;
   // Custom prompt for more detailed reasoning
   reasoning_detail?: string;
+  // Use OpenBB as primary data source for US stocks (free, no API key required)
+  use_openbb?: boolean;
 }
 
 export interface HedgeFundRequest extends BaseHedgeFundRequest {

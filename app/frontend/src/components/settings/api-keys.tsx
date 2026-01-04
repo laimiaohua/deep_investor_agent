@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { apiKeysService } from '@/services/api-keys-api';
 import { Eye, EyeOff, Key, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -21,6 +22,13 @@ const FINANCIAL_API_KEYS: ApiKey[] = [
     description: 'For getting US stock market financial data',
     url: 'https://financialdatasets.ai/',
     placeholder: 'your-financial-datasets-api-key'
+  },
+  {
+    key: 'MASSIVE_API_KEY',
+    label: 'Massive Financial Datasets API',
+    description: 'Alternative data source for US stock market financial data (backup to Financial Datasets)',
+    url: 'https://financialdatasets.ai/',
+    placeholder: 'your-massive-api-key'
   },
   {
     key: 'DEEPALPHA_API_KEY',
@@ -86,6 +94,7 @@ const LLM_API_KEYS: ApiKey[] = [
 export function ApiKeysSettings() {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
+  const [useOpenBB, setUseOpenBB] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { t } = useTranslation();
@@ -93,6 +102,11 @@ export function ApiKeysSettings() {
   // Load API keys from backend on component mount
   useEffect(() => {
     loadApiKeys();
+    // Load use_openbb preference from localStorage
+    const savedUseOpenBB = localStorage.getItem('use_openbb');
+    if (savedUseOpenBB !== null) {
+      setUseOpenBB(savedUseOpenBB === 'true');
+    }
   }, []);
 
   const loadApiKeys = async () => {
@@ -170,6 +184,11 @@ export function ApiKeysSettings() {
       console.error(`Failed to delete API key ${key}:`, err);
       setError(`Failed to delete ${key}. Please try again.`);
     }
+  };
+
+  const handleUseOpenBBChange = (checked: boolean) => {
+    setUseOpenBB(checked);
+    localStorage.setItem('use_openbb', checked.toString());
   };
 
   const renderApiKeySection = (title: string, description: string, keys: ApiKey[], icon: React.ReactNode) => (
@@ -283,6 +302,37 @@ export function ApiKeysSettings() {
           </CardContent>
         </Card>
       )}
+
+      {/* OpenBB Configuration */}
+      <Card className="bg-panel border-gray-700 dark:border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-lg font-medium text-primary flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            OpenBB 数据源（免费）
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            OpenBB 是一个免费的开源金融数据平台，集成了多个数据源。启用后，系统会优先使用 OpenBB 获取美股数据。
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <div className="text-sm font-medium">优先使用 OpenBB</div>
+              <p className="text-xs text-muted-foreground">
+                启用后，系统会优先使用 OpenBB 获取美股数据（价格、财务指标等）。如果 OpenBB 不可用，会自动切换到其他数据源。
+              </p>
+            </div>
+            <Checkbox
+              checked={useOpenBB}
+              onCheckedChange={(checked) => handleUseOpenBBChange(!!checked)}
+            />
+          </div>
+          <div className="text-xs text-muted-foreground bg-blue-500/10 border border-blue-500/20 rounded p-3">
+            <strong>注意：</strong>OpenBB 需要安装 Python 包。如果未安装，系统会自动切换到其他数据源。
+            安装方法：<code className="bg-gray-800 px-1 rounded">pip install openbb</code> 或 <code className="bg-gray-800 px-1 rounded">poetry add openbb</code>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Financial Data API Keys */}
       {renderApiKeySection(

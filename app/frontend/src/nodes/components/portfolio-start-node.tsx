@@ -248,6 +248,8 @@ export function PortfolioStartNode({
         portfolio_positions: portfolioPositions,
         // Pass language for LLM output
         language: getLanguageForLLM(),
+        // Pass use_openbb preference
+        use_openbb: localStorage.getItem('use_openbb') === 'true',
       });
     } else {
       // Use the regular hedge fund API for single run
@@ -272,6 +274,8 @@ export function PortfolioStartNode({
         portfolio_positions: portfolioPositions,
         // Pass language for LLM output
         language: getLanguageForLLM(),
+        // Pass use_openbb preference
+        use_openbb: localStorage.getItem('use_openbb') === 'true',
       });
     }
   };

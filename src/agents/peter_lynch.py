@@ -12,7 +12,7 @@ import json
 from typing_extensions import Literal
 from src.utils.progress import progress
 from src.utils.llm import call_llm
-from src.utils.api_key import get_api_key_from_state
+from src.utils.api_key import get_api_key_from_state, get_use_openbb_from_state
 
 
 class PeterLynchSignal(BaseModel):
@@ -44,7 +44,9 @@ def peter_lynch_agent(state: AgentState, agent_id: str = "peter_lynch_agent"):
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    massive_api_key = get_api_key_from_state(state, "MASSIVE_API_KEY")
     cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
+    use_openbb = get_use_openbb_from_state(state)
     analysis_data = {}
     lynch_analysis = {}
 
@@ -72,16 +74,17 @@ def peter_lynch_agent(state: AgentState, agent_id: str = "peter_lynch_agent"):
             limit=5,
             api_key=api_key,
             cn_api_key=cn_api_key,
+            massive_api_key=massive_api_key,
         )
 
         progress.update_status(agent_id, ticker, "Getting market cap")
-        market_cap = get_market_cap(ticker, end_date, api_key=api_key)
+        market_cap = get_market_cap(ticker, end_date, api_key=api_key, massive_api_key=massive_api_key, use_openbb=use_openbb)
 
         progress.update_status(agent_id, ticker, "Fetching insider trades")
-        insider_trades = get_insider_trades(ticker, end_date, limit=50, api_key=api_key)
+        insider_trades = get_insider_trades(ticker, end_date, limit=50, api_key=api_key, massive_api_key=massive_api_key)
 
         progress.update_status(agent_id, ticker, "Fetching company news")
-        company_news = get_company_news(ticker, end_date, limit=50, api_key=api_key)
+        company_news = get_company_news(ticker, end_date, limit=50, api_key=api_key, massive_api_key=massive_api_key)
 
         # Perform sub-analyses:
         progress.update_status(agent_id, ticker, "Analyzing growth")

@@ -229,6 +229,8 @@ export function StockAnalyzerNode({
         model_provider: undefined,
         // Pass language for LLM output
         language: getLanguageForLLM(),
+        // Pass use_openbb preference
+        use_openbb: localStorage.getItem('use_openbb') === 'true',
       });
     } else {
       // Use the regular hedge fund API for single run
@@ -250,6 +252,8 @@ export function StockAnalyzerNode({
         end_date: endDate,
         // Pass language for LLM output
         language: getLanguageForLLM(),
+        // Pass use_openbb preference
+        use_openbb: localStorage.getItem('use_openbb') === 'true',
       });
     }
   };

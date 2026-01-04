@@ -35,6 +35,138 @@ from src.tools.deepalpha import (
 _cache = get_cache()
 
 
+def _get_us_stock_api_key(api_key: str = None, massive_api_key: str = None) -> tuple[str | None, str | None]:
+    """
+    获取美股数据 API key，返回主要 API key 和备用 API key。
+    
+    Args:
+        api_key: 直接传入的 API key（优先）
+        massive_api_key: Massive 数据源的 API key
+    
+    Returns:
+        (primary_api_key, backup_api_key) 元组
+        - primary_api_key: 主要 API key（优先使用）
+        - backup_api_key: 备用 API key（当主要 API key 失败时使用）
+    """
+    # 确定主要 API key
+    primary = None
+    if api_key:
+        primary = api_key
+    else:
+        primary = os.environ.get("FINANCIAL_DATASETS_API_KEY")
+    
+    # 确定备用 API key
+    backup = None
+    if massive_api_key:
+        backup = massive_api_key
+    else:
+        backup = os.environ.get("MASSIVE_API_KEY")
+    
+    # 如果主要和备用是同一个，则不设置备用
+    if primary == backup:
+        backup = None
+    
+    return (primary, backup)
+
+
+def _get_primary_api_key(api_key: str = None, massive_api_key: str = None) -> str | None:
+    """
+    获取主要 API key（简化版本，用于不需要自动切换的场景）。
+    
+    Args:
+        api_key: 直接传入的 API key（优先）
+        massive_api_key: Massive 数据源的 API key
+    
+    Returns:
+        主要 API key 字符串，如果都没有则返回 None
+    """
+    primary, _ = _get_us_stock_api_key(api_key=api_key, massive_api_key=massive_api_key)
+    return primary
+
+
+def _make_api_request_with_fallback(
+    url: str,
+    api_key: str = None,
+    massive_api_key: str = None,
+    method: str = "GET",
+    json_data: dict = None,
+    timeout: int = 30,
+    operation: str = "API 请求",
+    ticker: str = None,
+) -> requests.Response:
+    """
+    发送 API 请求，支持自动切换到备用 API key（当主要 API key 返回 402 错误时）。
+    
+    Args:
+        url: 请求 URL
+        api_key: 主要 API key
+        massive_api_key: 备用 API key
+        method: HTTP 方法
+        json_data: POST 请求的 JSON 数据
+        timeout: 超时时间
+        operation: 操作描述（用于错误信息）
+        ticker: 股票代码（用于错误信息）
+    
+    Returns:
+        requests.Response: 响应对象
+    
+    Raises:
+        APIError: 如果所有 API key 都失败
+    """
+    primary_key, backup_key = _get_us_stock_api_key(api_key=api_key, massive_api_key=massive_api_key)
+    
+    last_error = None
+    response = None
+    
+    for attempt_key in [primary_key, backup_key]:
+        if attempt_key is None:
+            continue
+        
+        headers = {}
+        headers["X-API-KEY"] = attempt_key
+        
+        try:
+            response = _make_api_request(url, headers, method=method, json_data=json_data, timeout=timeout)
+            
+            # 如果返回 402（余额不足）且有备用 key，尝试备用 key
+            if response.status_code == 402 and backup_key and attempt_key == primary_key:
+                print(f"Warning: Primary API key returned 402 (insufficient credits) for {ticker or 'request'}, trying backup API key...")
+                last_error = APIError(f"主要 API key 余额不足", status_code=402, ticker=ticker, recoverable=True)
+                continue  # 尝试备用 key
+            
+            # 检查响应状态 - 成功则返回
+            if response.status_code == 200:
+                return response
+            
+            # 如果不是 200，处理错误（会抛出异常）
+            _handle_api_response(response, ticker or "", operation)
+            # 如果到这里说明处理成功（虽然不太可能）
+            return response
+            
+        except APIError as e:
+            # 如果是 402 错误且有备用 key，尝试备用 key
+            if e.status_code == 402 and backup_key and attempt_key == primary_key:
+                print(f"Warning: Primary API key returned 402 (insufficient credits) for {ticker or 'request'}, trying backup API key...")
+                last_error = e
+                continue  # 尝试备用 key
+            # 其他错误直接抛出
+            raise
+        except Exception as e:
+            # 如果是最后一次尝试，抛出异常
+            if attempt_key == backup_key or backup_key is None:
+                raise APIError(f"{operation}失败: {str(e)}", ticker=ticker, recoverable=True)
+            last_error = e
+            continue
+    
+    # 所有尝试都失败了
+    if last_error:
+        raise last_error
+    if response:
+        _handle_api_response(response, ticker or "", operation)
+        return response
+    raise APIError(f"{operation}失败: 所有 API key 都不可用", ticker=ticker, recoverable=False)
+
+
 def _make_api_request(
     url: str, 
     headers: dict, 
@@ -210,11 +342,12 @@ def _looks_like_cn_or_hk_ticker(ticker: str) -> bool:
     return base.isdigit() and len(base) >= 4
 
 
-def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None, cn_api_key: str = None) -> list[Price]:
+def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None, cn_api_key: str = None, massive_api_key: str = None, use_openbb: bool = False) -> list[Price]:
     """
     Fetch price data from cache or API.
     
     自动识别 A 股/港股代码，优先使用 DeepAlpha 接口；否则使用美股数据源。
+    支持多个美股数据源：OpenBB（免费）、Financial Datasets API、Massive API（备用）。
     
     Args:
         ticker: 股票代码
@@ -222,6 +355,8 @@ def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None,
         end_date: 结束日期
         api_key: 用于美股数据的 API key (FINANCIAL_DATASETS_API_KEY)
         cn_api_key: 用于 A 股/港股数据的 API key (DEEPALPHA_API_KEY)
+        massive_api_key: Massive 数据源的 API key（备用美股数据源）
+        use_openbb: 是否优先使用 OpenBB（免费，无需 API key）
     """
     # Create a cache key that includes all parameters to ensure exact matches
     cache_key = f"{ticker}_{start_date}_{end_date}"
@@ -267,16 +402,34 @@ def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None,
                     f"错误类型: {error_type}, 错误详情: {error_msg}"
                 )
 
-    # Fallback to US data source (original logic)
-    headers = {}
-    financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
-    if financial_api_key:
-        headers["X-API-KEY"] = financial_api_key
-
+    # 美股数据源：优先使用 OpenBB（如果启用且可用）
+    if use_openbb:
+        try:
+            from src.tools.openbb import get_openbb_prices, OPENBB_AVAILABLE
+            if OPENBB_AVAILABLE:
+                prices = get_openbb_prices(ticker, start_date, end_date)
+                if prices:
+                    _cache.set_prices(cache_key, [p.model_dump() for p in prices])
+                    return prices
+        except ImportError:
+            # OpenBB 未安装，继续使用其他数据源
+            print(f"Warning: OpenBB 未安装，切换到其他数据源")
+        except Exception as e:
+            # OpenBB 获取失败，继续使用其他数据源
+            print(f"Warning: OpenBB 获取价格数据失败，切换到其他数据源: {str(e)}")
+    
+    # Fallback to US data source (Financial Datasets API 或 Massive API)
     url = f"https://api.financialdatasets.ai/prices/?ticker={ticker}&interval=day&interval_multiplier=1&start_date={start_date}&end_date={end_date}"
+    
     try:
-        response = _make_api_request(url, headers, timeout=30)
-        _handle_api_response(response, ticker, "获取价格数据")
+        response = _make_api_request_with_fallback(
+            url=url,
+            api_key=api_key,
+            massive_api_key=massive_api_key,
+            timeout=30,
+            operation="获取价格数据",
+            ticker=ticker,
+        )
     except APIError as e:
         raise
     except Exception as e:
@@ -301,6 +454,8 @@ def get_financial_metrics(
     limit: int = 10,
     api_key: str = None,
     cn_api_key: str = None,
+    massive_api_key: str = None,
+    use_openbb: bool = False,
 ) -> list[FinancialMetrics]:
     """
     Fetch financial metrics from cache or API.
@@ -367,16 +522,31 @@ def get_financial_metrics(
                     f"错误类型: {error_type}, 错误详情: {error_msg}"
                 )
 
-    # Fallback to US data source (original logic)
-    headers = {}
-    financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
-    if financial_api_key:
-        headers["X-API-KEY"] = financial_api_key
-
+    # 美股数据源：优先使用 OpenBB（如果启用且可用）
+    if use_openbb:
+        try:
+            from src.tools.openbb import get_openbb_financial_metrics, OPENBB_AVAILABLE
+            if OPENBB_AVAILABLE:
+                metrics = get_openbb_financial_metrics(ticker, end_date, period=period, limit=limit)
+                if metrics:
+                    _cache.set_financial_metrics(cache_key, [m.model_dump() for m in metrics])
+                    return metrics
+        except ImportError:
+            print(f"Warning: OpenBB 未安装，切换到其他数据源")
+        except Exception as e:
+            print(f"Warning: OpenBB 获取财务指标失败，切换到其他数据源: {str(e)}")
+    
+    # Fallback to US data source (Financial Datasets API 或 Massive API)
     url = f"https://api.financialdatasets.ai/financial-metrics/?ticker={ticker}&report_period_lte={end_date}&limit={limit}&period={period}"
     try:
-        response = _make_api_request(url, headers, timeout=30)
-        _handle_api_response(response, ticker, "获取财务指标")
+        response = _make_api_request_with_fallback(
+            url=url,
+            api_key=api_key,
+            massive_api_key=massive_api_key,
+            timeout=30,
+            operation="获取财务指标",
+            ticker=ticker,
+        )
     except APIError as e:
         # Re-raise APIError as-is
         raise
@@ -404,6 +574,8 @@ def search_line_items(
     limit: int = 10,
     api_key: str = None,
     cn_api_key: str = None,
+    massive_api_key: str = None,
+    use_openbb: bool = False,
 ) -> list[LineItem]:
     """
     Fetch line items from API.
@@ -458,12 +630,20 @@ def search_line_items(
                     f"错误类型: {error_type}, 错误详情: {error_msg}"
                 )
 
-    # Fallback to US data source (original logic) - 仅用于美股代码
-    headers = {}
-    financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
-    if financial_api_key:
-        headers["X-API-KEY"] = financial_api_key
-
+    # 美股数据源：优先使用 OpenBB（如果启用且可用）
+    if use_openbb:
+        try:
+            from src.tools.openbb import get_openbb_line_items, OPENBB_AVAILABLE
+            if OPENBB_AVAILABLE:
+                line_items_list = get_openbb_line_items(ticker, line_items, end_date, period=period, limit=limit)
+                if line_items_list:
+                    return line_items_list
+        except ImportError:
+            print(f"Warning: OpenBB 未安装，切换到其他数据源")
+        except Exception as e:
+            print(f"Warning: OpenBB 获取财务数据失败，切换到其他数据源: {str(e)}")
+    
+    # Fallback to US data source (Financial Datasets API 或 Massive API) - 仅用于美股代码
     url = "https://api.financialdatasets.ai/financials/search/line-items"
 
     body = {
@@ -474,8 +654,16 @@ def search_line_items(
         "limit": limit,
     }
     try:
-        response = _make_api_request(url, headers, method="POST", json_data=body, timeout=30)
-        _handle_api_response(response, ticker, "获取财务项目")
+        response = _make_api_request_with_fallback(
+            url=url,
+            api_key=api_key,
+            massive_api_key=massive_api_key,
+            method="POST",
+            json_data=body,
+            timeout=30,
+            operation="获取财务项目",
+            ticker=ticker,
+        )
     except APIError as e:
         # Re-raise APIError as-is
         raise
@@ -1093,10 +1281,13 @@ def get_insider_trades(
     start_date: str | None = None,
     limit: int = 1000,
     api_key: str = None,
+    massive_api_key: str = None,
+    use_openbb: bool = False,
 ) -> list[InsiderTrade]:
     """Fetch insider trades from cache or API.
     
     注意：A股/港股暂不支持内幕交易数据，会返回空列表。
+    支持多个美股数据源：OpenBB（免费）、Financial Datasets API、Massive API（备用）。
     """
     # A股/港股暂不支持内幕交易数据
     if _looks_like_cn_or_hk_ticker(ticker):
@@ -1110,12 +1301,21 @@ def get_insider_trades(
     if cached_data := _cache.get_insider_trades(cache_key):
         return [InsiderTrade(**trade) for trade in cached_data]
 
-    # If not in cache, fetch from API
-    headers = {}
-    financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
-    if financial_api_key:
-        headers["X-API-KEY"] = financial_api_key
+    # 美股数据源：优先使用 OpenBB（如果启用且可用）
+    if use_openbb:
+        try:
+            from src.tools.openbb import get_openbb_insider_trades, OPENBB_AVAILABLE
+            if OPENBB_AVAILABLE:
+                trades = get_openbb_insider_trades(ticker, limit=limit)
+                if trades:
+                    _cache.set_insider_trades(cache_key, [t.model_dump() for t in trades])
+                    return trades
+        except ImportError:
+            print(f"Warning: OpenBB 未安装，切换到其他数据源")
+        except Exception as e:
+            print(f"Warning: OpenBB 获取内幕交易数据失败，切换到其他数据源: {str(e)}")
 
+    # If not in cache, fetch from API
     all_trades = []
     current_end_date = end_date
 
@@ -1125,9 +1325,15 @@ def get_insider_trades(
             url += f"&filing_date_gte={start_date}"
         url += f"&limit={limit}"
 
-        response = _make_api_request(url, headers)
         try:
-            _handle_api_response(response, ticker, "获取内部交易数据")
+            response = _make_api_request_with_fallback(
+                url=url,
+                api_key=api_key,
+                massive_api_key=massive_api_key,
+                timeout=30,
+                operation="获取内部交易数据",
+                ticker=ticker,
+            )
         except APIError as e:
             raise
         except Exception as e:
@@ -1167,10 +1373,13 @@ def get_company_news(
     start_date: str | None = None,
     limit: int = 1000,
     api_key: str = None,
+    massive_api_key: str = None,
+    use_openbb: bool = False,
 ) -> list[CompanyNews]:
     """Fetch company news from cache or API.
     
     注意：A股/港股暂不支持新闻数据，会返回空列表。
+    支持多个美股数据源：OpenBB（免费）、Financial Datasets API、Massive API（备用）。
     """
     # A股/港股暂不支持新闻数据
     if _looks_like_cn_or_hk_ticker(ticker):
@@ -1184,12 +1393,21 @@ def get_company_news(
     if cached_data := _cache.get_company_news(cache_key):
         return [CompanyNews(**news) for news in cached_data]
 
-    # If not in cache, fetch from API
-    headers = {}
-    financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
-    if financial_api_key:
-        headers["X-API-KEY"] = financial_api_key
+    # 美股数据源：优先使用 OpenBB（如果启用且可用）
+    if use_openbb:
+        try:
+            from src.tools.openbb import get_openbb_company_news, OPENBB_AVAILABLE
+            if OPENBB_AVAILABLE:
+                news_list = get_openbb_company_news(ticker, limit=limit)
+                if news_list:
+                    _cache.set_company_news(cache_key, [n.model_dump() for n in news_list])
+                    return news_list
+        except ImportError:
+            print(f"Warning: OpenBB 未安装，切换到其他数据源")
+        except Exception as e:
+            print(f"Warning: OpenBB 获取公司新闻失败，切换到其他数据源: {str(e)}")
 
+    # If not in cache, fetch from API
     all_news = []
     current_end_date = end_date
 
@@ -1199,9 +1417,15 @@ def get_company_news(
             url += f"&start_date={start_date}"
         url += f"&limit={limit}"
 
-        response = _make_api_request(url, headers)
         try:
-            _handle_api_response(response, ticker, "获取公司新闻")
+            response = _make_api_request_with_fallback(
+                url=url,
+                api_key=api_key,
+                massive_api_key=massive_api_key,
+                timeout=30,
+                operation="获取公司新闻",
+                ticker=ticker,
+            )
         except APIError as e:
             raise
         except Exception as e:
@@ -1239,15 +1463,18 @@ def get_market_cap(
     ticker: str,
     end_date: str,
     api_key: str = None,
+    massive_api_key: str = None,
+    use_openbb: bool = False,
 ) -> float | None:
     """Fetch market cap from the API.
     
     自动识别 A 股/港股代码，使用 DeepAlpha 接口；否则使用美股数据源。
+    支持多个美股数据源：OpenBB（免费）、Financial Datasets API、Massive API（备用）。
     """
     # A股/港股直接从财务指标获取市值
     if _looks_like_cn_or_hk_ticker(ticker):
         try:
-            financial_metrics = get_financial_metrics(ticker, end_date, api_key=api_key)
+            financial_metrics = get_financial_metrics(ticker, end_date, api_key=api_key, use_openbb=use_openbb)
             if not financial_metrics:
                 return None
             market_cap = financial_metrics[0].market_cap
@@ -1257,18 +1484,32 @@ def get_market_cap(
             print(f"Warning: Failed to get market cap for {ticker} via financial metrics: {str(e)}")
             return None
     
+    # 美股：优先使用 OpenBB（如果启用且可用）
+    if use_openbb:
+        try:
+            from src.tools.openbb import get_openbb_financial_metrics, OPENBB_AVAILABLE
+            if OPENBB_AVAILABLE:
+                metrics = get_openbb_financial_metrics(ticker, end_date, limit=1)
+                if metrics and metrics[0].market_cap:
+                    return metrics[0].market_cap
+        except ImportError:
+            print(f"Warning: OpenBB 未安装，切换到其他数据源")
+        except Exception as e:
+            print(f"Warning: OpenBB 获取市值失败，切换到其他数据源: {str(e)}")
+    
     # 美股：Check if end_date is today
     if end_date == datetime.datetime.now().strftime("%Y-%m-%d"):
         # Get the market cap from company facts API
-        headers = {}
-        financial_api_key = api_key or os.environ.get("FINANCIAL_DATASETS_API_KEY")
-        if financial_api_key:
-            headers["X-API-KEY"] = financial_api_key
-
         url = f"https://api.financialdatasets.ai/company/facts/?ticker={ticker}"
         try:
-            response = _make_api_request(url, headers, timeout=30)
-            _handle_api_response(response, ticker, "获取公司信息")
+            response = _make_api_request_with_fallback(
+                url=url,
+                api_key=api_key,
+                massive_api_key=massive_api_key,
+                timeout=30,
+                operation="获取公司信息",
+                ticker=ticker,
+            )
             data = response.json()
             response_model = CompanyFactsResponse(**data)
             return response_model.company_facts.market_cap
@@ -1280,7 +1521,7 @@ def get_market_cap(
             return None
 
     try:
-        financial_metrics = get_financial_metrics(ticker, end_date, api_key=api_key)
+        financial_metrics = get_financial_metrics(ticker, end_date, api_key=api_key, massive_api_key=massive_api_key, use_openbb=use_openbb)
         if not financial_metrics:
             return None
 

@@ -10,7 +10,7 @@ import statistics
 from langchain_core.messages import HumanMessage
 from src.graph.state import AgentState, show_agent_reasoning
 from src.utils.progress import progress
-from src.utils.api_key import get_api_key_from_state
+from src.utils.api_key import get_api_key_from_state, get_use_openbb_from_state
 from src.tools.api import (
     get_financial_metrics,
     get_insider_trades,
@@ -24,7 +24,9 @@ def growth_analyst_agent(state: AgentState, agent_id: str = "growth_analyst_agen
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    massive_api_key = get_api_key_from_state(state, "MASSIVE_API_KEY")
     cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
+    use_openbb = get_use_openbb_from_state(state)
     growth_analysis: dict[str, dict] = {}
 
     for ticker in tickers:
@@ -38,6 +40,8 @@ def growth_analyst_agent(state: AgentState, agent_id: str = "growth_analyst_agen
             limit=12, # 3 years of ttm data
             api_key=api_key,
             cn_api_key=cn_api_key,
+            massive_api_key=massive_api_key,
+            use_openbb=use_openbb,
         )
         if not financial_metrics or len(financial_metrics) < 4:
             progress.update_status(agent_id, ticker, "Failed: Not enough financial metrics")
@@ -50,7 +54,8 @@ def growth_analyst_agent(state: AgentState, agent_id: str = "growth_analyst_agen
             ticker=ticker,
             end_date=end_date,
             limit=1000,
-            api_key=api_key
+            api_key=api_key,
+            massive_api_key=massive_api_key,
         )
 
         # ------------------------------------------------------------------

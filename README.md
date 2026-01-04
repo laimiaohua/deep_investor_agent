@@ -138,13 +138,25 @@ DEEPSEEK_API_KEY=your-deepseek-api-key
 # 美股数据 API 密钥
 FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
 
+# Massive 数据源 API 密钥（备用美股数据源）
+MASSIVE_API_KEY=your-massive-api-key
+
+# OpenBB 数据源（免费，可选）
+# 如果启用，系统会优先使用 OpenBB 获取美股数据
+# 安装方法：pip install openbb 或 poetry add openbb
+USE_OPENBB=true  # 设置为 true 启用 OpenBB（默认 false）
+
 # A股/港股数据 API 密钥
 DEEPALPHA_API_KEY=your-deepalpha-api-key
 ```
 
 **重要提示**:
 - 必须至少配置一个 LLM API 密钥（如 `OPENAI_API_KEY`、`GROQ_API_KEY` 等）
-- 美股数据：AAPL、GOOGL、MSFT、NVDA、TSLA 的数据是免费的，不需要 API 密钥。其他股票需要配置 `FINANCIAL_DATASETS_API_KEY`
+- **美股数据源优先级**：
+  1. **OpenBB**（免费，推荐）：如果启用 `USE_OPENBB=true` 且已安装 OpenBB，系统会优先使用 OpenBB 获取美股数据。OpenBB 是免费的开源金融数据平台，集成了多个数据源，无需 API 密钥。
+  2. **Financial Datasets API**：主要付费数据源，需要配置 `FINANCIAL_DATASETS_API_KEY`
+  3. **Massive API**：备用付费数据源，当主要数据源不可用时自动切换，需要配置 `MASSIVE_API_KEY`
+- 美股数据：AAPL、GOOGL、MSFT、NVDA、TSLA 的数据在某些数据源中是免费的，不需要 API 密钥
 - A股/港股数据：如需分析 A 股（如 000001、600000）或港股，需要配置 `DEEPALPHA_API_KEY`
 
 ### 4. 运行示例
@@ -248,7 +260,7 @@ Web 应用提供了完整的使用说明功能，帮助用户快速上手：
    - 或在设置页面底部点击"使用说明"链接
 
 2. **使用说明内容**：
-   - **配置 API 密钥**：详细说明如何配置金融数据 API 密钥（Financial Datasets API 用于美股，DeepAlpha API 用于 A 股和港股）和语言模型 API 密钥
+   - **配置 API 密钥**：详细说明如何配置金融数据 API 密钥（Financial Datasets API 用于美股，Massive API 作为备用美股数据源，DeepAlpha API 用于 A 股和港股）和语言模型 API 密钥
    - **使用默认流程**：介绍如何创建和使用系统预设的分析流程
    - **流程定制**：说明如何基于组件自定义分析流程，包括添加节点、连接节点等操作
    - **语言切换**：说明如何切换系统语言（简体中文、繁体中文、English）
@@ -365,8 +377,10 @@ docker-compose -f docker-compose.prod.yml up -d --build
 ### 多市场数据支持
 
 - **独立的 API Key 配置**: 支持为美股和 A 股/港股配置独立的 API keys
+- **备用数据源支持**: 支持配置 Massive API 作为备用美股数据源，当主要数据源不可用时自动切换
 - **改进的错误处理**: 提供清晰的错误信息，帮助快速定位和解决问题
-- **自动数据源选择**: 系统会根据股票代码自动选择正确的数据源
+- **自动数据源选择**: 系统会根据股票代码自动选择正确的数据源，并支持自动故障转移
+- **A股港股行情数据接口**: A股和港股行情数据统一使用 `STOCK_KLINE` 接口获取，接口地址为 `/api/data_query?function=STOCK_KLINE&security_code=股票代码&apikey=YOUR_API_KEY`，确保能够获取最新的行情数据
 
 ### 完整的中文本地化支持
 

@@ -180,7 +180,7 @@ CN_FUNCTION_MAPPING: Dict[str, str] = {
     "BALANCE_SHEET": "BALANCE_SHEET",  # A股资产负债表
     "INCOME_STATEMENT": "INCOME_STATEMENT",  # A股利润表
     "CASH_FLOW": "CASHFLOW_STATEMENT",  # A股现金流量表（注意：是 CASHFLOW_STATEMENT，不是 CASH_FLOW）
-    "DAILY_PRICE": "MARKET_HISTORICAL_QUOTES",  # A股日线行情（使用 MARKET_HISTORICAL_QUOTES）
+    "DAILY_PRICE": "STOCK_KLINE",  # A股日线行情（使用 STOCK_KLINE 接口，参数为 security_code）
     "FINANALYSIS_MAIN": "FINANALYSIS_MAIN",  # A股财务分析主表
     "VALUATNANALYD": "VALUATNANALYD",  # A股估值分析
 }
@@ -217,11 +217,9 @@ HK_FUNCTION_MAPPING: Dict[str, list[str]] = {
     "CASH_FLOW": [
         "HKSTK_CASHFLOW",
     ],
-    # 日线行情：港股使用 HKSTK_MARKET_DATA 或 MARKET_HISTORICAL_QUOTES
-    # 根据 DeepAlpha 文档，港股行情接口可能是 HKSTK_MARKET_DATA
+    # 日线行情：港股使用 STOCK_KLINE 接口（与A股统一，参数为 security_code）
     "DAILY_PRICE": [
-        "HKSTK_MARKET_DATA",
-        "MARKET_HISTORICAL_QUOTES",  # 备用接口
+        "STOCK_KLINE",  # 统一使用 STOCK_KLINE 接口获取A股港股行情数据
     ],
     # 财务衍生指标：港股使用 HKSTK_FINRPT_DER
     # 财务比率：港股使用 HKSHARE_FINANCIAL_RATIOS
@@ -290,7 +288,7 @@ def _query_with_hk_fallback(
         
         for function_name in function_names:
             try:
-                # MARKET_HISTORICAL_QUOTES 使用 stock_code + market 参数，其他使用 security_code
+                # STOCK_KLINE 使用 security_code 参数，MARKET_HISTORICAL_QUOTES 使用 stock_code + market 参数
                 query_params = params.copy()
                 if function_name == "MARKET_HISTORICAL_QUOTES":
                     query_params["stock_code"] = symbol
@@ -298,6 +296,7 @@ def _query_with_hk_fallback(
                         query_params["market"] = "HK"  # 港股市场
                     resp = client.query(function_name, **query_params)
                 else:
+                    # STOCK_KLINE 和其他接口使用 security_code
                     resp = client.query(function_name, security_code=symbol, **params)
                 
                 # 确保 resp 是字典类型
@@ -370,7 +369,8 @@ def _query_with_hk_fallback(
         cn_function = CN_FUNCTION_MAPPING.get(base_function, base_function)
         
         # 某些接口使用不同的参数名
-        # MARKET_HISTORICAL_QUOTES 使用 stock_code + market，其余使用 security_code
+        # STOCK_KLINE 使用 security_code 参数
+        # MARKET_HISTORICAL_QUOTES 使用 stock_code + market（保留兼容性）
         query_params = params.copy()
         if cn_function == "MARKET_HISTORICAL_QUOTES":
             query_params["stock_code"] = symbol
@@ -378,6 +378,7 @@ def _query_with_hk_fallback(
             if not query_params.get("market"):
                 query_params["market"] = "HK" if _is_hk_stock(symbol) else "A"
         else:
+            # STOCK_KLINE 和其他接口使用 security_code
             query_params["security_code"] = symbol
         
         resp = client.query(cn_function, **query_params)

@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage
 from src.graph.state import AgentState, show_agent_reasoning
-from src.utils.api_key import get_api_key_from_state
+from src.utils.api_key import get_api_key_from_state, get_use_openbb_from_state
 from src.utils.progress import progress
 import json
 
@@ -15,7 +15,9 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
     end_date = data["end_date"]
     tickers = data["tickers"]
     api_key = get_api_key_from_state(state, "FINANCIAL_DATASETS_API_KEY")
+    massive_api_key = get_api_key_from_state(state, "MASSIVE_API_KEY")
     cn_api_key = get_api_key_from_state(state, "DEEPALPHA_API_KEY")
+    use_openbb = get_use_openbb_from_state(state)
     # Initialize fundamental analysis for each ticker
     fundamental_analysis = {}
 
@@ -30,6 +32,8 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
             limit=10,
             api_key=api_key,
             cn_api_key=cn_api_key,
+            massive_api_key=massive_api_key,
+            use_openbb=use_openbb,
         )
 
         if not financial_metrics:

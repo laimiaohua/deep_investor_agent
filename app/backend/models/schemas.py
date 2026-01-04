@@ -70,6 +70,7 @@ class BaseHedgeFundRequest(BaseModel):
     api_keys: Optional[Dict[str, str]] = None
     language: Optional[str] = None
     reasoning_detail: Optional[str] = None
+    use_openbb: Optional[bool] = False
 
     def get_agent_ids(self) -> List[str]:
         """Extract agent IDs from graph structure"""
