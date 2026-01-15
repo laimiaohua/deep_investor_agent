@@ -153,9 +153,15 @@ DEEPALPHA_API_KEY=your-deepalpha-api-key
 **重要提示**:
 - 必须至少配置一个 LLM API 密钥（如 `OPENAI_API_KEY`、`GROQ_API_KEY` 等）
 - **美股数据源优先级**：
-  1. **OpenBB**（免费，推荐）：如果启用 `USE_OPENBB=true` 且已安装 OpenBB，系统会优先使用 OpenBB 获取美股数据。OpenBB 是免费的开源金融数据平台，集成了多个数据源，无需 API 密钥。
-  2. **Financial Datasets API**：主要付费数据源，需要配置 `FINANCIAL_DATASETS_API_KEY`
-  3. **Massive API**：备用付费数据源，当主要数据源不可用时自动切换，需要配置 `MASSIVE_API_KEY`
+  - **价格数据**：
+    1. **OpenBB**（免费，推荐）：如果启用 `USE_OPENBB=true` 且已安装 OpenBB，系统会优先使用 OpenBB 获取美股数据。OpenBB 是免费的开源金融数据平台，集成了多个数据源，无需 API 密钥。
+    2. **Financial Datasets API**：主要付费数据源，需要配置 `FINANCIAL_DATASETS_API_KEY`
+    3. **Polygon.io (Massive API)**：备用付费数据源，当主要数据源不可用时自动切换，需要配置 `MASSIVE_API_KEY`。注意：Polygon.io使用不同的API端点和认证方式（`https://api.polygon.io`，使用query参数 `?apikey=xxx`），代码已正确集成。
+    4. **yfinance**（免费，自动备用）：当主要API失败时，系统会自动使用yfinance作为备用数据源。yfinance是免费的Python库，可以获取美股价格和财务数据，无需API密钥。
+  - **财务数据**（财务指标、财务报表等）：
+    1. **OpenBB**（免费，推荐）：如果启用 `USE_OPENBB=true` 且已安装 OpenBB，系统会优先使用 OpenBB 获取美股财务数据。
+    2. **yfinance**（免费，主要数据源）：yfinance是美股财务数据的主要数据源，无需API密钥，可以获取财务指标、财务报表等数据。
+    3. **Financial Datasets API**：付费备用数据源，当yfinance不可用时使用，需要配置 `FINANCIAL_DATASETS_API_KEY`
 - 美股数据：AAPL、GOOGL、MSFT、NVDA、TSLA 的数据在某些数据源中是免费的，不需要 API 密钥
 - A股/港股数据：如需分析 A 股（如 000001、600000）或港股，需要配置 `DEEPALPHA_API_KEY`
 
@@ -381,6 +387,18 @@ docker-compose -f docker-compose.prod.yml up -d --build
 - **改进的错误处理**: 提供清晰的错误信息，帮助快速定位和解决问题
 - **自动数据源选择**: 系统会根据股票代码自动选择正确的数据源，并支持自动故障转移
 - **A股港股行情数据接口**: A股和港股行情数据统一使用 `STOCK_KLINE` 接口获取，接口地址为 `/api/data_query?function=STOCK_KLINE&security_code=股票代码&apikey=YOUR_API_KEY`，确保能够获取最新的行情数据
+- **yfinance支持**: 
+  - **财务数据主要数据源**：yfinance是美股财务数据（财务指标、财务报表等）的主要数据源，无需API密钥，免费使用。
+  - **价格数据备用数据源**：当主要价格数据API失败时，yfinance会自动作为备用数据源。
+  - 已验证可以成功获取PLTR等美股数据（价格、财务信息、财务报表等）。
+  - **多期间财务指标**：yfinance现在可以返回多个历史期间的财务指标（最多4年），支持竞争护城河分析。
+  - **管理层质量数据**：从yfinance现金流表提取股票回购、分红等数据，支持管理层质量分析。
+  - **内在价值计算**：支持从FinancialMetrics中的自由现金流数据计算内在价值和安全边际。
+- **Polygon.io (Massive API) 支持**: 已正确集成Polygon.io API，使用正确的端点和认证方式。当主要API失败时自动切换到Polygon.io作为备用数据源
+- **巴菲特智能体数据完整性改进**：
+  - **竞争护城河分析**：现在可以从yfinance获取多个历史期间的财务指标，支持分析ROE一致性、营业利润率稳定性等护城河指标。
+  - **管理层质量分析**：现在可以从yfinance现金流表提取股票回购、分红等数据，评估管理层的股东友好程度。
+  - **内在价值和安全边际计算**：即使没有完整的财务报表数据，也可以从FinancialMetrics中的自由现金流数据计算内在价值和安全边际。
 
 ### 完整的中文本地化支持
 
@@ -416,14 +434,22 @@ docker-compose -f docker-compose.prod.yml up -d --build
   - 如果某个股票的数据获取失败，会跳过该股票并继续处理其他股票
   - 失败的股票会返回中性信号（neutral）和详细的错误说明
   - 确保即使部分数据源不可用，也能完成其他股票的分析
+- **港股数据缺失处理**: 针对港股数据源的特殊处理机制
+  - **自动降级**: 当港股某个接口（如 BALANCE_SHEET）的所有候选接口都失败时，系统会返回空列表而不是抛出异常
+  - **继续分析**: 即使部分数据缺失（如资产负债表），智能体仍会使用可用数据（如财务指标）继续分析
+  - **中性信号**: 当关键数据（如财务指标）完全缺失时，智能体会生成中性信号（neutral），而不是导致整个分析任务失败
+  - **错误记录**: 数据缺失信息会被记录在分析结果中，帮助用户了解数据可用性
+  - **多接口尝试**: 对于港股，系统会尝试多个候选接口（如 HKSTK_BALANCE_SHEET_GENE、HKSTK_BALANCE_BANK、HKSTK_BALANCE_INSUR），只有全部失败时才返回空数据
 - **友好的错误提示**: 提供详细的中文错误信息，帮助快速定位问题
   - API 余额不足（402）：提示充值
   - API 密钥无效（401）：提示检查配置
   - 网络错误：提示检查网络连接
   - 超时错误：自动重试，无需手动干预
+  - 数据缺失：提示数据不可用，但不影响其他股票的分析
 - **降级策略**: 当主要数据源失败时，尝试使用备用数据源或返回默认值
   - A 股/港股数据获取失败时，会尝试使用备用 API
   - 部分数据缺失时，使用可用数据进行部分分析
+  - 港股数据缺失时，智能体使用可用数据生成分析结果，而不是直接失败
 
 ### 分析结果展示与进度
 

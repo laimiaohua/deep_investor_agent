@@ -111,7 +111,14 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
             mgmt_analysis = analyze_management_quality(financial_line_items)
 
             progress.update_status(agent_id, ticker, "Calculating intrinsic value")
-            intrinsic_value_analysis = calculate_intrinsic_value(financial_line_items)
+            # 优先使用financial_line_items计算内在价值，如果没有则使用FinancialMetrics
+            if financial_line_items and len(financial_line_items) >= 3:
+                intrinsic_value_analysis = calculate_intrinsic_value(financial_line_items)
+            elif metrics and len(metrics) >= 3:
+                # 使用FinancialMetrics计算内在价值
+                intrinsic_value_analysis = calculate_intrinsic_value_from_metrics(metrics, market_cap)
+            else:
+                intrinsic_value_analysis = {"intrinsic_value": None, "details": ["Insufficient data for intrinsic value calculation"]}
 
             # Calculate total score without circle of competence (LLM will handle that)
             total_score = (
@@ -134,9 +141,16 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
 
             # Add margin of safety analysis if we have both intrinsic value and current price
             margin_of_safety = None
-            intrinsic_value = intrinsic_value_analysis["intrinsic_value"]
-            if intrinsic_value and market_cap:
-                margin_of_safety = (intrinsic_value - market_cap) / market_cap
+            intrinsic_value = intrinsic_value_analysis.get("intrinsic_value")
+            if intrinsic_value is not None and market_cap is not None:
+                try:
+                    # 确保都是实数类型
+                    iv = float(intrinsic_value) if not isinstance(intrinsic_value, complex) else None
+                    mc = float(market_cap) if not isinstance(market_cap, complex) else None
+                    if iv is not None and mc is not None and mc > 0:
+                        margin_of_safety = (iv - mc) / mc
+                except (ValueError, TypeError):
+                    margin_of_safety = None
 
             # Combine all analysis results for LLM evaluation
             analysis_data[ticker] = {
@@ -174,12 +188,15 @@ def warren_buffett_agent(state: AgentState, agent_id: str = "warren_buffett_agen
         except Exception as e:
             # Catch any unexpected errors and continue with other tickers
             error_msg = str(e)
+            import traceback
+            error_trace = traceback.format_exc()
             progress.update_status(agent_id, ticker, f"Error: {error_msg[:50]}")
             print(f"Error analyzing {ticker}: {error_msg}")
+            print(f"Error traceback:\n{error_trace}")
             buffett_analysis[ticker] = {
                 "signal": "neutral",
                 "confidence": 0,
-                "reasoning": f"分析 {ticker} 时发生错误: {error_msg}。请检查数据源和配置。"
+                "reasoning": f"分析 {ticker} 时发生错误: {error_msg}。请检查数据源和配置。错误详情: {error_trace[-500:]}"
             }
 
     # Create the message
@@ -207,39 +224,56 @@ def analyze_fundamentals(metrics: list) -> dict[str, any]:
     score = 0
     reasoning = []
 
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
     # Check ROE (Return on Equity)
-    if latest_metrics.return_on_equity and latest_metrics.return_on_equity > 0.15:  # 15% ROE threshold
+    roe = safe_float(latest_metrics.return_on_equity)
+    if roe is not None and roe > 0.15:  # 15% ROE threshold
         score += 2
-        reasoning.append(f"Strong ROE of {latest_metrics.return_on_equity:.1%}")
-    elif latest_metrics.return_on_equity:
-        reasoning.append(f"Weak ROE of {latest_metrics.return_on_equity:.1%}")
+        reasoning.append(f"Strong ROE of {roe:.1%}")
+    elif roe is not None:
+        reasoning.append(f"Weak ROE of {roe:.1%}")
     else:
         reasoning.append("ROE data not available")
 
     # Check Debt to Equity
-    if latest_metrics.debt_to_equity and latest_metrics.debt_to_equity < 0.5:
+    debt_to_equity = safe_float(latest_metrics.debt_to_equity)
+    if debt_to_equity is not None and debt_to_equity < 0.5:
         score += 2
         reasoning.append("Conservative debt levels")
-    elif latest_metrics.debt_to_equity:
-        reasoning.append(f"High debt to equity ratio of {latest_metrics.debt_to_equity:.1f}")
+    elif debt_to_equity is not None:
+        reasoning.append(f"High debt to equity ratio of {debt_to_equity:.1f}")
     else:
         reasoning.append("Debt to equity data not available")
 
     # Check Operating Margin
-    if latest_metrics.operating_margin and latest_metrics.operating_margin > 0.15:
+    operating_margin = safe_float(latest_metrics.operating_margin)
+    if operating_margin is not None and operating_margin > 0.15:
         score += 2
         reasoning.append("Strong operating margins")
-    elif latest_metrics.operating_margin:
-        reasoning.append(f"Weak operating margin of {latest_metrics.operating_margin:.1%}")
+    elif operating_margin is not None:
+        reasoning.append(f"Weak operating margin of {operating_margin:.1%}")
     else:
         reasoning.append("Operating margin data not available")
 
     # Check Current Ratio
-    if latest_metrics.current_ratio and latest_metrics.current_ratio > 1.5:
+    current_ratio = safe_float(latest_metrics.current_ratio)
+    if current_ratio is not None and current_ratio > 1.5:
         score += 1
         reasoning.append("Good liquidity position")
-    elif latest_metrics.current_ratio:
-        reasoning.append(f"Weak liquidity with current ratio of {latest_metrics.current_ratio:.1f}")
+    elif current_ratio is not None:
+        reasoning.append(f"Weak liquidity with current ratio of {current_ratio:.1f}")
     else:
         reasoning.append("Current ratio data not available")
 
@@ -254,11 +288,30 @@ def analyze_consistency(financial_line_items: list) -> dict[str, any]:
     score = 0
     reasoning = []
 
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
     # Check earnings growth trend
-    earnings_values = [item.net_income for item in financial_line_items if item.net_income]
+    earnings_values = []
+    for item in financial_line_items:
+        if hasattr(item, 'net_income') and item.net_income is not None:
+            val = safe_float(item.net_income)
+            if val is not None:
+                earnings_values.append(val)
+    
     if len(earnings_values) >= 4:
         # Simple check: is each period's earnings bigger than the next?
-        earnings_growth = all(earnings_values[i] > earnings_values[i + 1] for i in range(len(earnings_values) - 1))
+        earnings_growth = all(isinstance(earnings_values[i], (int, float)) and isinstance(earnings_values[i + 1], (int, float)) and earnings_values[i] > earnings_values[i + 1] for i in range(len(earnings_values) - 1))
 
         if earnings_growth:
             score += 3
@@ -297,13 +350,30 @@ def analyze_moat(metrics: list) -> dict[str, any]:
     max_score = 5
 
     # 1. Return on Capital Consistency (Buffett's favorite moat indicator)
-    historical_roes = [m.return_on_equity for m in metrics if m.return_on_equity is not None]
-    historical_roics = [m.return_on_invested_capital for m in metrics if
-                        hasattr(m, 'return_on_invested_capital') and m.return_on_invested_capital is not None]
+    # 过滤掉复数和非数值类型
+    historical_roes = []
+    for m in metrics:
+        if m.return_on_equity is not None:
+            try:
+                roe = float(m.return_on_equity)
+                if not (isinstance(roe, complex) or roe != roe):  # 排除复数和NaN
+                    historical_roes.append(roe)
+            except (ValueError, TypeError):
+                pass
+    
+    historical_roics = []
+    for m in metrics:
+        if hasattr(m, 'return_on_invested_capital') and m.return_on_invested_capital is not None:
+            try:
+                roic = float(m.return_on_invested_capital)
+                if not (isinstance(roic, complex) or roic != roic):  # 排除复数和NaN
+                    historical_roics.append(roic)
+            except (ValueError, TypeError):
+                pass
 
     if len(historical_roes) >= 5:
         # Check for consistently high ROE (>15% for most periods)
-        high_roe_periods = sum(1 for roe in historical_roes if roe > 0.15)
+        high_roe_periods = sum(1 for roe in historical_roes if isinstance(roe, (int, float)) and roe > 0.15)
         roe_consistency = high_roe_periods / len(historical_roes)
 
         if roe_consistency >= 0.8:  # 80%+ of periods with ROE > 15%
@@ -320,23 +390,37 @@ def analyze_moat(metrics: list) -> dict[str, any]:
         reasoning.append("Insufficient ROE history for moat analysis")
 
     # 2. Operating Margin Stability (Pricing Power Indicator)
-    historical_margins = [m.operating_margin for m in metrics if m.operating_margin is not None]
+    # 过滤掉复数和非数值类型
+    historical_margins = []
+    for m in metrics:
+        if m.operating_margin is not None:
+            try:
+                margin = float(m.operating_margin)
+                if not (isinstance(margin, complex) or margin != margin):  # 排除复数和NaN
+                    historical_margins.append(margin)
+            except (ValueError, TypeError):
+                pass
     if len(historical_margins) >= 5:
         # Check for stable or improving margins (sign of pricing power)
-        avg_margin = sum(historical_margins) / len(historical_margins)
-        recent_margins = historical_margins[:3]  # Last 3 periods
-        older_margins = historical_margins[-3:]  # First 3 periods
-
-        recent_avg = sum(recent_margins) / len(recent_margins)
-        older_avg = sum(older_margins) / len(older_margins)
-
-        if avg_margin > 0.2 and recent_avg >= older_avg:  # 20%+ margins and stable/improving
-            moat_score += 1
-            reasoning.append(f"Strong and stable operating margins (avg: {avg_margin:.1%}) indicate pricing power moat")
-        elif avg_margin > 0.15:  # At least decent margins
-            reasoning.append(f"Decent operating margins (avg: {avg_margin:.1%}) suggest some competitive advantage")
+        # 确保所有值都是实数
+        valid_margins = [m for m in historical_margins if isinstance(m, (int, float)) and not isinstance(m, complex)]
+        if len(valid_margins) < 5:
+            reasoning.append("Insufficient valid margin data for moat analysis")
         else:
-            reasoning.append(f"Low operating margins (avg: {avg_margin:.1%}) suggest limited pricing power")
+            avg_margin = sum(valid_margins) / len(valid_margins)
+            recent_margins = valid_margins[:3]  # Last 3 periods
+            older_margins = valid_margins[-3:]  # First 3 periods
+
+            recent_avg = sum(recent_margins) / len(recent_margins) if recent_margins else 0
+            older_avg = sum(older_margins) / len(older_margins) if older_margins else 0
+
+            if isinstance(avg_margin, (int, float)) and not isinstance(avg_margin, complex) and avg_margin > 0.2 and isinstance(recent_avg, (int, float)) and isinstance(older_avg, (int, float)) and recent_avg >= older_avg:  # 20%+ margins and stable/improving
+                moat_score += 1
+                reasoning.append(f"Strong and stable operating margins (avg: {avg_margin:.1%}) indicate pricing power moat")
+            elif isinstance(avg_margin, (int, float)) and not isinstance(avg_margin, complex) and avg_margin > 0.15:  # At least decent margins
+                reasoning.append(f"Decent operating margins (avg: {avg_margin:.1%}) suggest some competitive advantage")
+            else:
+                reasoning.append(f"Low operating margins (avg: {avg_margin:.1%}) suggest limited pricing power")
 
     # 3. Asset Efficiency and Scale Advantages
     if len(metrics) >= 5:
@@ -467,14 +551,36 @@ def calculate_owner_earnings(financial_line_items: list) -> dict[str, any]:
         except:
             pass  # Skip working capital adjustment if data unavailable
 
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+    
+    # 确保所有值都是实数
+    net_income_safe = safe_float(net_income)
+    depreciation_safe = safe_float(depreciation)
+    maintenance_capex_safe = safe_float(maintenance_capex)
+    working_capital_change_safe = safe_float(working_capital_change)
+    
+    if any(v is None for v in [net_income_safe, depreciation_safe, maintenance_capex_safe]):
+        return {"owner_earnings": None, "details": ["Invalid data types in owner earnings calculation"]}
+    
     # Calculate owner earnings
-    owner_earnings = net_income + depreciation - maintenance_capex - working_capital_change
+    owner_earnings = net_income_safe + depreciation_safe - maintenance_capex_safe - (working_capital_change_safe or 0)
 
     # Sanity checks
-    if owner_earnings < net_income * 0.3:  # Owner earnings shouldn't be less than 30% of net income typically
+    if isinstance(owner_earnings, (int, float)) and not isinstance(owner_earnings, complex) and isinstance(net_income_safe, (int, float)) and owner_earnings < net_income_safe * 0.3:  # Owner earnings shouldn't be less than 30% of net income typically
         details.append("Warning: Owner earnings significantly below net income - high capex intensity")
 
-    if maintenance_capex > depreciation * 2:  # Maintenance capex shouldn't typically exceed 2x depreciation
+    if isinstance(maintenance_capex_safe, (int, float)) and isinstance(depreciation_safe, (int, float)) and not isinstance(maintenance_capex_safe, complex) and not isinstance(depreciation_safe, complex) and maintenance_capex_safe > depreciation_safe * 2:  # Maintenance capex shouldn't typically exceed 2x depreciation
         details.append("Warning: Estimated maintenance capex seems high relative to depreciation")
 
     details.extend([
@@ -509,14 +615,32 @@ def estimate_maintenance_capex(financial_line_items: list) -> float:
     capex_ratios = []
     depreciation_values = []
 
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+    
     for item in financial_line_items[:5]:  # Last 5 periods
         if hasattr(item, 'capital_expenditure') and hasattr(item, 'revenue'):
-            if item.capital_expenditure and item.revenue and item.revenue > 0:
-                capex_ratio = abs(item.capital_expenditure) / item.revenue
-                capex_ratios.append(capex_ratio)
+            capex = safe_float(item.capital_expenditure)
+            revenue = safe_float(item.revenue)
+            if capex is not None and revenue is not None and isinstance(revenue, (int, float)) and revenue > 0:
+                capex_ratio = abs(capex) / revenue
+                if isinstance(capex_ratio, (int, float)) and not isinstance(capex_ratio, complex):
+                    capex_ratios.append(capex_ratio)
 
-        if hasattr(item, 'depreciation_and_amortization') and item.depreciation_and_amortization:
-            depreciation_values.append(item.depreciation_and_amortization)
+        if hasattr(item, 'depreciation_and_amortization') and item.depreciation_and_amortization is not None:
+            dep = safe_float(item.depreciation_and_amortization)
+            if dep is not None:
+                depreciation_values.append(dep)
 
     # Approach 2: Percentage of depreciation (typically 80-120% for maintenance)
     latest_depreciation = financial_line_items[0].depreciation_and_amortization if financial_line_items[
@@ -542,8 +666,16 @@ def estimate_maintenance_capex(financial_line_items: list) -> float:
         method_3 = avg_capex_ratio * latest_revenue if latest_revenue else 0
 
         # Use the median of the three approaches for conservatism
-        estimates = sorted([method_1, method_2, method_3])
-        return estimates[1]  # Median
+        # 确保所有值都是实数
+        valid_estimates = [m for m in [method_1, method_2, method_3] if isinstance(m, (int, float)) and not isinstance(m, complex)]
+        if len(valid_estimates) >= 3:
+            estimates = sorted(valid_estimates)
+            return estimates[1]  # Median
+        elif len(valid_estimates) >= 2:
+            estimates = sorted(valid_estimates)
+            return estimates[0]  # 最小值
+        else:
+            return valid_estimates[0] if valid_estimates else 0
     else:
         # Use the higher of method 1 and 2
         return max(method_1, method_2)
@@ -578,14 +710,31 @@ def calculate_intrinsic_value(financial_line_items: list) -> dict[str, any]:
         if hasattr(item, 'net_income') and item.net_income:
             historical_earnings.append(item.net_income)
 
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+    
     # Calculate historical growth rate
     if len(historical_earnings) >= 3:
-        oldest_earnings = historical_earnings[-1]
-        latest_earnings = historical_earnings[0]
+        oldest_earnings = safe_float(historical_earnings[-1])
+        latest_earnings = safe_float(historical_earnings[0])
         years = len(historical_earnings) - 1
 
-        if oldest_earnings > 0:
+        if oldest_earnings is not None and latest_earnings is not None and isinstance(oldest_earnings, (int, float)) and isinstance(latest_earnings, (int, float)) and not isinstance(oldest_earnings, complex) and not isinstance(latest_earnings, complex) and oldest_earnings > 0:
             historical_growth = ((latest_earnings / oldest_earnings) ** (1 / years)) - 1
+            # 确保historical_growth是实数
+            if isinstance(historical_growth, complex):
+                historical_growth = historical_growth.real
+            historical_growth = float(historical_growth)
             # Conservative adjustment - cap growth and apply haircut
             historical_growth = max(-0.05, min(historical_growth, 0.15))  # Cap between -5% and 15%
             conservative_growth = historical_growth * 0.7  # Apply 30% haircut for conservatism
@@ -668,18 +817,167 @@ def calculate_intrinsic_value(financial_line_items: list) -> dict[str, any]:
     }
 
 
+def calculate_intrinsic_value_from_metrics(metrics: list, market_cap: float | None = None) -> dict[str, any]:
+    """
+    从FinancialMetrics计算内在价值（当financial_line_items不可用时使用）。
+    使用自由现金流和增长率数据进行DCF估值。
+    """
+    if not metrics or len(metrics) < 3:
+        return {"intrinsic_value": None, "details": ["Insufficient metrics data for reliable valuation"]}
+    
+    latest_metric = metrics[0]
+    
+    # 获取自由现金流（优先使用自由现金流收益率计算）
+    free_cash_flow = None
+    
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+    
+    # 优先从自由现金流收益率计算
+    fcf_yield = safe_float(latest_metric.free_cash_flow_yield)
+    market_cap_val = safe_float(latest_metric.market_cap)
+    if fcf_yield is not None and market_cap_val is not None:
+        free_cash_flow = fcf_yield * market_cap_val
+    
+    # 如果没有，尝试从每股自由现金流计算（需要估算流通股数）
+    if free_cash_flow is None:
+        fcf_per_share = safe_float(latest_metric.free_cash_flow_per_share)
+        pe_ratio = safe_float(latest_metric.price_to_earnings_ratio)
+        eps = safe_float(latest_metric.earnings_per_share)
+        if fcf_per_share is not None and market_cap_val is not None and pe_ratio is not None and eps is not None:
+            # 如果知道每股收益和PE，可以估算股价
+            price_per_share = eps * pe_ratio
+            if isinstance(price_per_share, (int, float)) and not isinstance(price_per_share, complex) and price_per_share > 0:
+                shares_outstanding = market_cap_val / price_per_share
+                free_cash_flow = fcf_per_share * shares_outstanding
+    
+    if free_cash_flow is None or not isinstance(free_cash_flow, (int, float)) or isinstance(free_cash_flow, complex) or free_cash_flow <= 0:
+        return {"intrinsic_value": None, "details": [f"Missing or negative FCF for valuation; FCF = {free_cash_flow}"]}
+    
+    # 计算历史增长率（从多个期间的FinancialMetrics）
+    base_growth = 0.05  # 默认5%
+    
+    # 如果有历史自由现金流数据，计算历史增长率
+    historical_fcf = []
+    for m in metrics[:5]:  # 最多5年
+        fcf_y = safe_float(m.free_cash_flow_yield)
+        mc = safe_float(m.market_cap)
+        if fcf_y is not None and mc is not None:
+            fcf_val = fcf_y * mc
+            if isinstance(fcf_val, (int, float)) and not isinstance(fcf_val, complex):
+                historical_fcf.append(fcf_val)
+    
+    if len(historical_fcf) >= 3:
+        oldest_fcf = historical_fcf[-1]
+        latest_fcf = historical_fcf[0]
+        years = len(historical_fcf) - 1
+        
+        if isinstance(oldest_fcf, (int, float)) and not isinstance(oldest_fcf, complex) and oldest_fcf > 0:
+            historical_growth = ((latest_fcf / oldest_fcf) ** (1 / years)) - 1
+            historical_growth = max(-0.05, min(historical_growth, 0.15))
+            conservative_growth = historical_growth * 0.7
+            base_growth = conservative_growth
+    
+    # 如果没有历史数据，使用增长率指标
+    if base_growth == 0.05:  # 如果还是默认值
+        if latest_metric.free_cash_flow_growth is not None:
+            base_growth = latest_metric.free_cash_flow_growth * 0.7
+        elif latest_metric.revenue_growth is not None:
+            base_growth = latest_metric.revenue_growth * 0.7
+        elif latest_metric.earnings_growth is not None:
+            base_growth = latest_metric.earnings_growth * 0.8
+    
+    # Buffett的保守假设
+    stage1_growth = min(base_growth, 0.08)
+    stage2_growth = min(base_growth * 0.5, 0.04)
+    terminal_growth = 0.025
+    discount_rate = 0.10
+    
+    stage1_years = 5
+    stage2_years = 5
+    
+    details = [f"Using three-stage DCF from FinancialMetrics: Stage 1 ({stage1_growth:.1%}, {stage1_years}y), Stage 2 ({stage2_growth:.1%}, {stage2_years}y), Terminal ({terminal_growth:.1%})"]
+    
+    # Stage 1: 较高增长
+    stage1_pv = sum(free_cash_flow * (1 + stage1_growth) ** year / (1 + discount_rate) ** year for year in range(1, stage1_years + 1))
+    
+    # Stage 2: 过渡增长
+    stage1_final_fcf = free_cash_flow * (1 + stage1_growth) ** stage1_years
+    stage2_pv = sum(stage1_final_fcf * (1 + stage2_growth) ** year / (1 + discount_rate) ** (stage1_years + year) for year in range(1, stage2_years + 1))
+    
+    # Terminal value
+    final_fcf = stage1_final_fcf * (1 + stage2_growth) ** stage2_years
+    terminal_value = final_fcf * (1 + terminal_growth) / (discount_rate - terminal_growth)
+    terminal_pv = terminal_value / (1 + discount_rate) ** (stage1_years + stage2_years)
+    
+    intrinsic_value = stage1_pv + stage2_pv + terminal_pv
+    conservative_intrinsic_value = intrinsic_value * 0.85
+    
+    details.extend([
+        f"Stage 1 PV: ${stage1_pv:,.0f}",
+        f"Stage 2 PV: ${stage2_pv:,.0f}",
+        f"Terminal PV: ${terminal_pv:,.0f}",
+        f"Total IV: ${intrinsic_value:,.0f}",
+        f"Conservative IV (15% haircut): ${conservative_intrinsic_value:,.0f}",
+        f"Free cash flow: ${free_cash_flow:,.0f}",
+        f"Discount rate: {discount_rate:.1%}"
+    ])
+    
+    return {
+        "intrinsic_value": conservative_intrinsic_value,
+        "raw_intrinsic_value": intrinsic_value,
+        "free_cash_flow": free_cash_flow,
+        "assumptions": {
+            "stage1_growth": stage1_growth,
+            "stage2_growth": stage2_growth,
+            "terminal_growth": terminal_growth,
+            "discount_rate": discount_rate,
+            "stage1_years": stage1_years,
+            "stage2_years": stage2_years,
+            "base_growth": base_growth,
+        },
+        "details": details,
+    }
+
+
 def analyze_book_value_growth(financial_line_items: list) -> dict[str, any]:
     """Analyze book value per share growth - a key Buffett metric."""
     if len(financial_line_items) < 3:
         return {"score": 0, "details": "Insufficient data for book value analysis"}
 
+    # 辅助函数：安全地转换为实数
+    def safe_float(value):
+        """安全地将值转换为float，排除复数和NaN"""
+        if value is None:
+            return None
+        try:
+            val = float(value)
+            if isinstance(val, complex) or val != val:  # 排除复数和NaN
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+
     # Extract book values per share
-    book_values = [
-        item.shareholders_equity / item.outstanding_shares
-        for item in financial_line_items
-        if hasattr(item, 'shareholders_equity') and hasattr(item, 'outstanding_shares')
-        and item.shareholders_equity and item.outstanding_shares
-    ]
+    book_values = []
+    for item in financial_line_items:
+        if hasattr(item, 'shareholders_equity') and hasattr(item, 'outstanding_shares'):
+            equity = safe_float(item.shareholders_equity)
+            shares = safe_float(item.outstanding_shares)
+            if equity is not None and shares is not None and shares > 0:
+                book_value = equity / shares
+                if isinstance(book_value, (int, float)) and not isinstance(book_value, complex):
+                    book_values.append(book_value)
 
     if len(book_values) < 3:
         return {"score": 0, "details": "Insufficient book value data for growth analysis"}

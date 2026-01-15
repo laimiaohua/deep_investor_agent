@@ -37,7 +37,20 @@ def fundamentals_analyst_agent(state: AgentState, agent_id: str = "fundamentals_
         )
 
         if not financial_metrics:
-            progress.update_status(agent_id, ticker, "Failed: No financial metrics found")
+            # 数据缺失时，生成中性信号而不是跳过该股票
+            progress.update_status(agent_id, ticker, "Warning: No financial metrics found, generating neutral signal")
+            language = state.get("metadata", {}).get("language") or "en"
+            is_chinese = language and ("Chinese" in language or "中文" in language or language.lower() in ["zh", "zh-cn", "zh-tw"])
+            if is_chinese:
+                reasoning_text = f"无法获取 {ticker} 的财务数据，数据源可能不支持该股票或数据暂时不可用。建议等待数据更新或检查股票代码是否正确。"
+            else:
+                reasoning_text = f"Unable to fetch financial data for {ticker}. The data source may not support this stock or data is temporarily unavailable. Please wait for data updates or check if the ticker is correct."
+            fundamental_analysis[ticker] = {
+                "signal": "neutral",
+                "confidence": 30,
+                "reasoning": reasoning_text,
+            }
+            progress.update_status(agent_id, ticker, "Done", analysis=reasoning_text)
             continue
 
         # Pull the most recent financial metrics

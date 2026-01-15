@@ -67,7 +67,14 @@ def zhang_lei_agent(state: AgentState, agent_id: str = "zhang_lei_agent"):
         )
 
         if not metrics:
-            progress.update_status(agent_id, ticker, "Failed: No financial metrics found")
+            # 数据缺失时，生成中性信号而不是跳过该股票
+            progress.update_status(agent_id, ticker, "Warning: No financial metrics found, generating neutral signal")
+            analysis[ticker] = {
+                "signal": "neutral",
+                "confidence": 30,
+                "reasoning": f"无法获取 {ticker} 的财务数据，数据源可能不支持该股票或数据暂时不可用。建议等待数据更新或检查股票代码是否正确。"
+            }
+            progress.update_status(agent_id, ticker, "Done", analysis=analysis[ticker]["reasoning"])
             continue
 
         latest = metrics[0]
@@ -106,7 +113,14 @@ def zhang_lei_agent(state: AgentState, agent_id: str = "zhang_lei_agent"):
                         "core_fields": bs_snapshot,
                     }
             except Exception as e:  # noqa: BLE001
-                facts["cn_balance_sheet_error"] = str(e)
+                # 捕获异常但不影响分析，记录错误信息
+                error_msg = str(e)
+                # 如果是数据缺失错误，记录为信息而不是错误
+                if "all hk function formats failed" in error_msg.lower() or "不支持" in error_msg or "not found" in error_msg.lower():
+                    facts["cn_balance_sheet_note"] = f"资产负债表数据不可用: {error_msg[:100]}"
+                else:
+                    # 其他错误（如网络错误、配置错误）记录为错误
+                    facts["cn_balance_sheet_error"] = error_msg[:200]
 
         progress.update_status(agent_id, ticker, "Generating Zhang Lei analysis")
         # 获取语言设置以决定 checklist 的语言

@@ -5,6 +5,7 @@ import requests
 import time
 from typing import Optional
 from requests.exceptions import RequestException, Timeout, ConnectionError as RequestsConnectionError
+from datetime import datetime as dt
 
 from src.data.cache import get_cache
 from src.data.models import (
@@ -33,6 +34,9 @@ from src.tools.deepalpha import (
 
 # Global cache instance
 _cache = get_cache()
+
+# Polygon.io API base URL
+POLYGON_API_BASE_URL = "https://api.polygon.io"
 
 
 def _get_us_stock_api_key(api_key: str = None, massive_api_key: str = None) -> tuple[str | None, str | None]:
@@ -328,6 +332,610 @@ def _handle_api_response(response: requests.Response, ticker: str, operation: st
     raise APIError(user_msg, status_code=response.status_code, ticker=ticker, recoverable=recoverable)
 
 
+def _make_polygon_api_request(
+    endpoint: str,
+    api_key: str,
+    params: dict = None,
+    timeout: int = 30,
+    max_retries: int = 3
+) -> requests.Response:
+    """
+    使用Polygon.io API发送请求。
+    
+    Args:
+        endpoint: API端点路径（例如：/v2/aggs/ticker/AAPL/range/1/day/2024-01-01/2024-12-31）
+        api_key: Polygon.io API密钥
+        params: 额外的查询参数
+        timeout: 请求超时时间
+        max_retries: 最大重试次数
+    
+    Returns:
+        requests.Response: 响应对象
+    
+    Raises:
+        APIError: 如果请求失败
+    """
+    url = f"{POLYGON_API_BASE_URL}{endpoint}"
+    
+    # Polygon.io使用query参数认证
+    query_params = params or {}
+    query_params["apikey"] = api_key
+    
+    last_exception = None
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.get(url, params=query_params, timeout=timeout)
+            
+            # 处理速率限制（429）
+            if response.status_code == 429 and attempt < max_retries:
+                delay = min(2 ** attempt, 60)
+                print(f"Polygon.io rate limited (429). Attempt {attempt + 1}/{max_retries + 1}. Waiting {delay}s...")
+                time.sleep(delay)
+                continue
+            
+            # 处理服务器错误（5xx）
+            if 500 <= response.status_code < 600 and attempt < max_retries:
+                delay = min(2 ** attempt, 30)
+                print(f"Polygon.io server error ({response.status_code}). Attempt {attempt + 1}/{max_retries + 1}. Waiting {delay}s...")
+                time.sleep(delay)
+                continue
+            
+            return response
+            
+        except (Timeout, RequestsConnectionError) as e:
+            last_exception = e
+            if attempt < max_retries:
+                delay = min(2 ** attempt, 30)
+                print(f"Polygon.io request error: {str(e)}. Attempt {attempt + 1}/{max_retries + 1}. Waiting {delay}s...")
+                time.sleep(delay)
+                continue
+            else:
+                raise APIError(f"Polygon.io API请求失败: {str(e)}", recoverable=True)
+        except RequestException as e:
+            last_exception = e
+            if attempt < max_retries:
+                delay = min(2 ** attempt, 30)
+                print(f"Polygon.io request error: {str(e)}. Attempt {attempt + 1}/{max_retries + 1}. Waiting {delay}s...")
+                time.sleep(delay)
+                continue
+            else:
+                raise APIError(f"Polygon.io API请求失败: {str(e)}", recoverable=True)
+    
+    if last_exception:
+        raise APIError(f"Polygon.io API请求失败: {str(last_exception)}", recoverable=True)
+    else:
+        raise APIError(f"Polygon.io API请求失败")
+
+
+def _convert_polygon_price_to_price(polygon_data: dict, ticker: str) -> Price:
+    """
+    将Polygon.io聚合数据转换为Price对象。
+    
+    Args:
+        polygon_data: Polygon.io返回的聚合数据项
+        ticker: 股票代码
+    
+    Returns:
+        Price对象
+    """
+    # Polygon.io时间戳是毫秒，需要转换为日期字符串
+    timestamp_ms = polygon_data.get("t", 0)
+    date_str = dt.fromtimestamp(timestamp_ms / 1000).strftime("%Y-%m-%d")
+    
+    return Price(
+        open=float(polygon_data.get("o", 0)),
+        close=float(polygon_data.get("c", 0)),
+        high=float(polygon_data.get("h", 0)),
+        low=float(polygon_data.get("l", 0)),
+        volume=int(polygon_data.get("v", 0)),
+        time=date_str
+    )
+
+
+def get_polygon_prices(ticker: str, start_date: str, end_date: str, api_key: str) -> list[Price]:
+    """
+    从Polygon.io获取价格数据。
+    
+    Args:
+        ticker: 股票代码
+        start_date: 开始日期 (YYYY-MM-DD)
+        end_date: 结束日期 (YYYY-MM-DD)
+        api_key: Polygon.io API密钥
+    
+    Returns:
+        Price对象列表
+    """
+    # 转换日期格式（Polygon.io需要YYYY-MM-DD格式）
+    start = start_date.replace("-", "")
+    end = end_date.replace("-", "")
+    
+    # Polygon.io聚合数据端点
+    endpoint = f"/v2/aggs/ticker/{ticker}/range/1/day/{start}/{end}"
+    
+    try:
+        response = _make_polygon_api_request(endpoint, api_key)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get("status") != "OK":
+                error_msg = data.get("error", "Unknown error")
+                raise APIError(f"Polygon.io API返回错误: {error_msg}", recoverable=True)
+            
+            results = data.get("results", [])
+            if not results:
+                return []
+            
+            # 转换Polygon.io格式到Price对象
+            prices = []
+            for result in results:
+                try:
+                    price = _convert_polygon_price_to_price(result, ticker)
+                    prices.append(price)
+                except (ValueError, KeyError, TypeError) as e:
+                    print(f"Warning: 跳过无效的价格数据: {str(e)}")
+                    continue
+            
+            return prices
+        elif response.status_code == 403:
+            # 403可能是计划限制，尝试更短的时间范围
+            error_data = response.json()
+            error_msg = error_data.get("error", error_data.get("message", "Unknown error"))
+            if "plan" in error_msg.lower() or "timeframe" in error_msg.lower() or "upgrade" in error_msg.lower():
+                print(f"Warning: Polygon.io计划限制，尝试使用最近30天的数据...")
+                # 尝试获取最近30天的数据
+                try:
+                    end_dt = dt.strptime(end_date, "%Y-%m-%d")
+                    start_dt = end_dt - datetime.timedelta(days=30)
+                    start_short = start_dt.strftime("%Y-%m-%d")
+                    start_short_no_dash = start_short.replace("-", "")
+                    end_no_dash = end_date.replace("-", "")
+                    
+                    endpoint_short = f"/v2/aggs/ticker/{ticker}/range/1/day/{start_short_no_dash}/{end_no_dash}"
+                    response_short = _make_polygon_api_request(endpoint_short, api_key)
+                    
+                    if response_short.status_code == 200:
+                        data_short = response_short.json()
+                        if data_short.get("status") == "OK":
+                            results = data_short.get("results", [])
+                            if results:
+                                prices = []
+                                for result in results:
+                                    try:
+                                        price = _convert_polygon_price_to_price(result, ticker)
+                                        prices.append(price)
+                                    except (ValueError, KeyError, TypeError):
+                                        continue
+                                if prices:
+                                    print(f"Info: 成功获取最近30天的数据 ({len(prices)} 条记录)")
+                                    return prices
+                except Exception as e:
+                    print(f"Warning: 尝试获取最近30天数据也失败: {str(e)}")
+            # 如果无法获取数据，返回空列表而不是抛出错误
+            # 这样调用者可以继续使用其他数据源或使用可用数据进行分析
+            print(f"Warning: Polygon.io API计划限制，无法获取数据: {error_msg}")
+            print(f"Info: 建议升级Polygon.io账户计划或使用其他数据源")
+            return []
+        else:
+            _handle_api_response(response, ticker, "获取价格数据")
+            return []
+            
+    except APIError:
+        raise
+    except Exception as e:
+        raise APIError(f"Polygon.io获取价格数据失败: {str(e)}", recoverable=True)
+
+
+def get_yfinance_financial_metrics(
+    ticker: str,
+    end_date: str,
+    period: str = "ttm",
+    limit: int = 10,
+) -> list[FinancialMetrics]:
+    """
+    使用yfinance获取财务指标。
+    
+    Args:
+        ticker: 股票代码
+        end_date: 结束日期
+        period: 财报周期（yfinance主要支持annual和quarterly）
+        limit: 返回记录数
+    
+    Returns:
+        FinancialMetrics对象列表
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print(f"Warning: yfinance未安装，无法使用yfinance获取财务指标")
+        return []
+    
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        if not info:
+            return []
+        
+        # 获取财务报表数据
+        financials = stock.financials
+        balance_sheet = stock.balance_sheet
+        cashflow = stock.cashflow
+        
+        # 构建FinancialMetrics对象
+        metrics = []
+        
+        # 从info中获取最新数据（这些数据是当前时点的，适用于所有期间）
+        market_cap = info.get("marketCap")
+        pe_ratio = info.get("trailingPE") or info.get("forwardPE")
+        pb_ratio = info.get("priceToBook")
+        ps_ratio = info.get("priceToSalesTrailing12Months")
+        gross_margin = info.get("grossMargins")
+        operating_margin = info.get("operatingMargins")
+        profit_margin = info.get("profitMargins")
+        debt_to_equity = info.get("debtToEquity")
+        current_ratio = info.get("currentRatio")
+        quick_ratio = info.get("quickRatio")
+        cash_ratio = info.get("cashRatio")
+        revenue_growth = info.get("revenueGrowth")
+        earnings_growth = info.get("earningsGrowth")
+        earnings_quarterly_growth = info.get("earningsQuarterlyGrowth")
+        
+        # 为每个历史期间创建FinancialMetrics对象（用于护城河分析）
+        if financials is not None and not financials.empty:
+            # 遍历所有历史期间（从最新到最旧）
+            periods_to_process = min(len(financials.columns), limit)
+            
+            for period_idx in range(periods_to_process):
+                # 获取该期间的报告期
+                report_period = financials.columns[-(period_idx + 1)]  # 从最新到最旧
+                period_str = str(report_period) if isinstance(report_period, pd.Timestamp) else end_date
+                
+                # 从财务报表中提取该期间的数据
+                try:
+                    revenue = financials.loc["Total Revenue"].iloc[-(period_idx + 1)] if "Total Revenue" in financials.index else None
+                    net_income = financials.loc["Net Income"].iloc[-(period_idx + 1)] if "Net Income" in financials.index else None
+                except (IndexError, KeyError):
+                    continue
+                
+                # 从balance_sheet中提取该期间的数据
+                total_assets = None
+                total_liabilities = None
+                shareholders_equity = None
+                if balance_sheet is not None and not balance_sheet.empty and len(balance_sheet.columns) > period_idx:
+                    try:
+                        if "Total Assets" in balance_sheet.index:
+                            total_assets = balance_sheet.loc["Total Assets"].iloc[-(period_idx + 1)]
+                        if "Total Liabilities" in balance_sheet.index:
+                            total_liabilities = balance_sheet.loc["Total Liabilities"].iloc[-(period_idx + 1)]
+                        elif "Total Liab" in balance_sheet.index:
+                            total_liabilities = balance_sheet.loc["Total Liab"].iloc[-(period_idx + 1)]
+                        if "Stockholders Equity" in balance_sheet.index:
+                            shareholders_equity = balance_sheet.loc["Stockholders Equity"].iloc[-(period_idx + 1)]
+                        elif "Total Stockholder Equity" in balance_sheet.index:
+                            shareholders_equity = balance_sheet.loc["Total Stockholder Equity"].iloc[-(period_idx + 1)]
+                    except (IndexError, KeyError):
+                        pass
+                
+                # 从cashflow中提取该期间的数据
+                free_cash_flow = None
+                operating_cash_flow = None
+                if cashflow is not None and not cashflow.empty and len(cashflow.columns) > period_idx:
+                    try:
+                        if "Free Cash Flow" in cashflow.index:
+                            free_cash_flow = cashflow.loc["Free Cash Flow"].iloc[-(period_idx + 1)]
+                        if "Operating Cash Flow" in cashflow.index:
+                            operating_cash_flow = cashflow.loc["Operating Cash Flow"].iloc[-(period_idx + 1)]
+                    except (IndexError, KeyError):
+                        pass
+                
+                # 如果是第一个期间（最新），尝试从info获取补充数据
+                if period_idx == 0:
+                    if free_cash_flow is None:
+                        free_cash_flow = info.get("freeCashflow")
+                    if operating_cash_flow is None:
+                        operating_cash_flow = info.get("operatingCashflow")
+                
+                # 计算该期间的财务指标
+                # ROE和ROA（每个期间独立计算）
+                roe = None
+                if net_income and shareholders_equity and shareholders_equity > 0:
+                    roe = net_income / shareholders_equity
+                
+                roa = None
+                if net_income and total_assets and total_assets > 0:
+                    roa = net_income / total_assets
+                
+                # 计算该期间的债务权益比（如果该期间有数据）
+                period_debt_to_equity = None
+                if total_liabilities and shareholders_equity and shareholders_equity > 0:
+                    period_debt_to_equity = total_liabilities / shareholders_equity
+                elif period_idx == 0:  # 最新期间使用info中的数据
+                    period_debt_to_equity = debt_to_equity
+                
+                # 计算该期间的债务资产比
+                period_debt_to_assets = None
+                if total_liabilities and total_assets and total_assets > 0:
+                    period_debt_to_assets = total_liabilities / total_assets
+                
+                # 计算该期间的增长率（相对于前一个期间）
+                period_revenue_growth = None
+                period_earnings_growth = None
+                period_book_value_growth = None
+                period_free_cash_flow_growth = None
+                
+                if period_idx < len(financials.columns) - 1:  # 不是最旧的期间
+                    try:
+                        # 收入增长率
+                        if revenue and "Total Revenue" in financials.index:
+                            prev_revenue = financials.loc["Total Revenue"].iloc[-(period_idx + 2)]
+                            if prev_revenue and prev_revenue > 0:
+                                period_revenue_growth = (revenue - prev_revenue) / prev_revenue
+                        
+                        # 盈利增长率
+                        if net_income and "Net Income" in financials.index:
+                            prev_earnings = financials.loc["Net Income"].iloc[-(period_idx + 2)]
+                            if prev_earnings and prev_earnings > 0:
+                                period_earnings_growth = (net_income - prev_earnings) / prev_earnings
+                        
+                        # 账面价值增长率
+                        if shareholders_equity and balance_sheet is not None and not balance_sheet.empty:
+                            equity_key = None
+                            if "Stockholders Equity" in balance_sheet.index:
+                                equity_key = "Stockholders Equity"
+                            elif "Total Stockholder Equity" in balance_sheet.index:
+                                equity_key = "Total Stockholder Equity"
+                            
+                            if equity_key and len(balance_sheet.columns) > period_idx + 1:
+                                prev_equity = balance_sheet.loc[equity_key].iloc[-(period_idx + 2)]
+                                if prev_equity and prev_equity > 0:
+                                    period_book_value_growth = (shareholders_equity - prev_equity) / prev_equity
+                        
+                        # 自由现金流增长率
+                        if free_cash_flow and cashflow is not None and not cashflow.empty and "Free Cash Flow" in cashflow.index and len(cashflow.columns) > period_idx + 1:
+                            prev_fcf = cashflow.loc["Free Cash Flow"].iloc[-(period_idx + 2)]
+                            if prev_fcf and prev_fcf > 0:
+                                period_free_cash_flow_growth = (free_cash_flow - prev_fcf) / prev_fcf
+                    except (IndexError, KeyError):
+                        pass
+                
+                # 对于最新期间，使用info中的增长率
+                if period_idx == 0:
+                    if period_revenue_growth is None:
+                        period_revenue_growth = revenue_growth
+                    if period_earnings_growth is None:
+                        period_earnings_growth = earnings_growth
+                
+                # 计算每股自由现金流和自由现金流收益率（仅对最新期间）
+                period_free_cash_flow_per_share = None
+                period_free_cash_flow_yield = None
+                if period_idx == 0:
+                    if free_cash_flow:
+                        shares_outstanding = info.get("sharesOutstanding")
+                        if shares_outstanding and shares_outstanding > 0:
+                            period_free_cash_flow_per_share = free_cash_flow / shares_outstanding
+                    if free_cash_flow and market_cap and market_cap > 0:
+                        period_free_cash_flow_yield = free_cash_flow / market_cap
+                
+                # 为该期间创建FinancialMetrics对象
+                period_metric = FinancialMetrics(
+                    ticker=ticker,
+                    report_period=period_str,
+                    period=period,
+                    currency=info.get("currency", "USD"),
+                    # 估值指标（仅最新期间有市值相关数据）
+                    market_cap=float(market_cap) if market_cap and period_idx == 0 else None,
+                    enterprise_value=None,
+                    price_to_earnings_ratio=float(pe_ratio) if pe_ratio and period_idx == 0 else None,
+                    price_to_book_ratio=float(pb_ratio) if pb_ratio and period_idx == 0 else None,
+                    price_to_sales_ratio=float(ps_ratio) if ps_ratio and period_idx == 0 else None,
+                    enterprise_value_to_ebitda_ratio=None,
+                    enterprise_value_to_revenue_ratio=None,
+                    free_cash_flow_yield=float(period_free_cash_flow_yield) if period_free_cash_flow_yield else None,
+                    peg_ratio=info.get("pegRatio") if period_idx == 0 else None,
+                    # 盈利能力指标
+                    gross_margin=float(gross_margin) if gross_margin and period_idx == 0 else None,
+                    operating_margin=float(operating_margin) if operating_margin and period_idx == 0 else None,
+                    net_margin=float(profit_margin) if profit_margin and period_idx == 0 else None,
+                    return_on_equity=float(roe) if roe else None,
+                    return_on_assets=float(roa) if roa else None,
+                    return_on_invested_capital=None,
+                    # 效率指标
+                    asset_turnover=None,
+                    inventory_turnover=None,
+                    receivables_turnover=None,
+                    days_sales_outstanding=None,
+                    operating_cycle=None,
+                    working_capital_turnover=None,
+                    # 流动性指标（仅最新期间）
+                    current_ratio=float(current_ratio) if current_ratio and period_idx == 0 else None,
+                    quick_ratio=float(quick_ratio) if quick_ratio and period_idx == 0 else None,
+                    cash_ratio=float(cash_ratio) if cash_ratio and period_idx == 0 else None,
+                    operating_cash_flow_ratio=None,
+                    # 杠杆指标
+                    debt_to_equity=float(period_debt_to_equity) if period_debt_to_equity else None,
+                    debt_to_assets=float(period_debt_to_assets) if period_debt_to_assets else None,
+                    interest_coverage=None,
+                    # 增长指标
+                    revenue_growth=float(period_revenue_growth) if period_revenue_growth is not None else None,
+                    earnings_growth=float(period_earnings_growth) if period_earnings_growth is not None else None,
+                    book_value_growth=float(period_book_value_growth) if period_book_value_growth is not None else None,
+                    earnings_per_share_growth=float(earnings_quarterly_growth) if earnings_quarterly_growth is not None and period_idx == 0 else None,
+                    free_cash_flow_growth=float(period_free_cash_flow_growth) if period_free_cash_flow_growth is not None else None,
+                    operating_income_growth=None,
+                    ebitda_growth=None,
+                    payout_ratio=info.get("payoutRatio") if period_idx == 0 else None,
+                    # 每股指标（仅最新期间）
+                    earnings_per_share=float(info.get("trailingEps") or info.get("forwardEps") or 0) if (info.get("trailingEps") or info.get("forwardEps")) and period_idx == 0 else None,
+                    book_value_per_share=float(info.get("bookValue")) if info.get("bookValue") and period_idx == 0 else None,
+                    free_cash_flow_per_share=float(period_free_cash_flow_per_share) if period_free_cash_flow_per_share else None,
+                )
+                metrics.append(period_metric)
+        
+        return metrics[:limit]
+        
+    except Exception as e:
+        print(f"Warning: yfinance获取财务指标失败 ({ticker}): {str(e)}")
+        import traceback
+        print(f"详细错误: {traceback.format_exc()}")
+        return []
+
+
+def get_yfinance_line_items(
+    ticker: str,
+    line_items: list[str],
+    end_date: str,
+    period: str = "ttm",
+    limit: int = 10,
+) -> list[LineItem]:
+    """
+    使用yfinance获取财务项目数据。
+    
+    Args:
+        ticker: 股票代码
+        line_items: 要获取的财务项目列表
+        end_date: 结束日期
+        period: 财报周期
+        limit: 返回记录数
+    
+    Returns:
+        LineItem对象列表
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print(f"Warning: yfinance未安装，无法使用yfinance获取财务项目")
+        return []
+    
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        if not info:
+            return []
+        
+        # 获取财务报表数据
+        financials = stock.financials
+        balance_sheet = stock.balance_sheet
+        cashflow = stock.cashflow
+        
+        line_items_list = []
+        
+        # 为每个历史期间创建LineItem对象
+        if financials is not None and not financials.empty:
+            periods_to_process = min(len(financials.columns), limit)
+            
+            for period_idx in range(periods_to_process):
+                report_period = financials.columns[-(period_idx + 1)]
+                period_str = str(report_period) if isinstance(report_period, pd.Timestamp) else end_date
+                
+                # 创建LineItem对象，包含所有请求的财务项目
+                line_item_data = {
+                    "ticker": ticker,
+                    "report_period": period_str,
+                    "period": period,
+                    "currency": info.get("currency", "USD"),
+                }
+                
+                # 从财务报表中提取数据
+                # 利润表数据
+                if financials is not None and not financials.empty and len(financials.columns) > period_idx:
+                    try:
+                        if "revenue" in [li.lower() for li in line_items] and "Total Revenue" in financials.index:
+                            line_item_data["revenue"] = float(financials.loc["Total Revenue"].iloc[-(period_idx + 1)])
+                        if "net_income" in [li.lower() for li in line_items] and "Net Income" in financials.index:
+                            line_item_data["net_income"] = float(financials.loc["Net Income"].iloc[-(period_idx + 1)])
+                        if "gross_profit" in [li.lower() for li in line_items] and "Gross Profit" in financials.index:
+                            line_item_data["gross_profit"] = float(financials.loc["Gross Profit"].iloc[-(period_idx + 1)])
+                    except (IndexError, KeyError, ValueError):
+                        pass
+                
+                # 资产负债表数据
+                if balance_sheet is not None and not balance_sheet.empty and len(balance_sheet.columns) > period_idx:
+                    try:
+                        if "total_assets" in [li.lower() for li in line_items]:
+                            if "Total Assets" in balance_sheet.index:
+                                line_item_data["total_assets"] = float(balance_sheet.loc["Total Assets"].iloc[-(period_idx + 1)])
+                        if "total_liabilities" in [li.lower() for li in line_items]:
+                            if "Total Liabilities" in balance_sheet.index:
+                                line_item_data["total_liabilities"] = float(balance_sheet.loc["Total Liabilities"].iloc[-(period_idx + 1)])
+                            elif "Total Liab" in balance_sheet.index:
+                                line_item_data["total_liabilities"] = float(balance_sheet.loc["Total Liab"].iloc[-(period_idx + 1)])
+                        if "shareholders_equity" in [li.lower() for li in line_items]:
+                            if "Stockholders Equity" in balance_sheet.index:
+                                line_item_data["shareholders_equity"] = float(balance_sheet.loc["Stockholders Equity"].iloc[-(period_idx + 1)])
+                            elif "Total Stockholder Equity" in balance_sheet.index:
+                                line_item_data["shareholders_equity"] = float(balance_sheet.loc["Total Stockholder Equity"].iloc[-(period_idx + 1)])
+                    except (IndexError, KeyError, ValueError):
+                        pass
+                
+                # 现金流表数据（用于管理层质量分析）
+                if cashflow is not None and not cashflow.empty and len(cashflow.columns) > period_idx:
+                    try:
+                        # 自由现金流
+                        if "free_cash_flow" in [li.lower() for li in line_items] and "Free Cash Flow" in cashflow.index:
+                            line_item_data["free_cash_flow"] = float(cashflow.loc["Free Cash Flow"].iloc[-(period_idx + 1)])
+                        
+                        # 资本支出
+                        if "capital_expenditure" in [li.lower() for li in line_items] and "Capital Expenditure" in cashflow.index:
+                            line_item_data["capital_expenditure"] = float(cashflow.loc["Capital Expenditure"].iloc[-(period_idx + 1)])
+                        
+                        # 折旧和摊销
+                        if "depreciation_and_amortization" in [li.lower() for li in line_items]:
+                            if "Depreciation And Amortization" in cashflow.index:
+                                line_item_data["depreciation_and_amortization"] = float(cashflow.loc["Depreciation And Amortization"].iloc[-(period_idx + 1)])
+                            elif "Depreciation" in cashflow.index:
+                                line_item_data["depreciation_and_amortization"] = float(cashflow.loc["Depreciation"].iloc[-(period_idx + 1)])
+                        
+                        # 股票回购/发行（用于管理层质量分析）
+                        if "issuance_or_purchase_of_equity_shares" in [li.lower() for li in line_items]:
+                            # 计算净股票发行（负数表示回购，正数表示发行）
+                            repurchase = 0.0
+                            issuance = 0.0
+                            
+                            if "Repurchase Of Capital Stock" in cashflow.index:
+                                repurchase = float(cashflow.loc["Repurchase Of Capital Stock"].iloc[-(period_idx + 1)]) or 0.0
+                            if "Issuance Of Capital Stock" in cashflow.index:
+                                issuance = float(cashflow.loc["Issuance Of Capital Stock"].iloc[-(period_idx + 1)]) or 0.0
+                            elif "Net Common Stock Issuance" in cashflow.index:
+                                issuance = float(cashflow.loc["Net Common Stock Issuance"].iloc[-(period_idx + 1)]) or 0.0
+                            
+                            # 净股票发行 = 发行 - 回购（负数表示净回购）
+                            net_issuance = issuance - repurchase
+                            if pd.notna(net_issuance):
+                                line_item_data["issuance_or_purchase_of_equity_shares"] = float(net_issuance)
+                        
+                        # 分红（用于管理层质量分析）
+                        if "dividends_and_other_cash_distributions" in [li.lower() for li in line_items]:
+                            # yfinance可能没有直接的dividend字段，需要从其他字段计算
+                            # 通常分红在Financing Cash Flow中
+                            if "Common Stock Dividends Paid" in cashflow.index:
+                                line_item_data["dividends_and_other_cash_distributions"] = -float(cashflow.loc["Common Stock Dividends Paid"].iloc[-(period_idx + 1)])  # 负数表示现金流出
+                            elif "Dividends Paid" in cashflow.index:
+                                line_item_data["dividends_and_other_cash_distributions"] = -float(cashflow.loc["Dividends Paid"].iloc[-(period_idx + 1)])
+                        
+                        # 流通股数（从info获取，适用于所有期间）
+                        if "outstanding_shares" in [li.lower() for li in line_items] and period_idx == 0:
+                            shares_outstanding = info.get("sharesOutstanding")
+                            if shares_outstanding:
+                                line_item_data["outstanding_shares"] = float(shares_outstanding)
+                    except (IndexError, KeyError, ValueError, TypeError):
+                        pass
+                
+                # 创建LineItem对象
+                if len(line_item_data) > 4:  # 至少有ticker, report_period, period, currency之外的数据
+                    line_item = LineItem(**line_item_data)
+                    line_items_list.append(line_item)
+        
+        return line_items_list[:limit]
+        
+    except Exception as e:
+        print(f"Warning: yfinance获取财务项目失败 ({ticker}): {str(e)}")
+        import traceback
+        print(f"详细错误: {traceback.format_exc()}")
+        return []
+
+
 def _looks_like_cn_or_hk_ticker(ticker: str) -> bool:
     """
     粗略判断是否是 A 股 / 港股代码：
@@ -418,7 +1026,7 @@ def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None,
             # OpenBB 获取失败，继续使用其他数据源
             print(f"Warning: OpenBB 获取价格数据失败，切换到其他数据源: {str(e)}")
     
-    # Fallback to US data source (Financial Datasets API 或 Massive API)
+    # Fallback to US data source (Financial Datasets API 或 Massive API/Polygon.io)
     url = f"https://api.financialdatasets.ai/prices/?ticker={ticker}&interval=day&interval_multiplier=1&start_date={start_date}&end_date={end_date}"
     
     try:
@@ -431,8 +1039,48 @@ def get_prices(ticker: str, start_date: str, end_date: str, api_key: str = None,
             ticker=ticker,
         )
     except APIError as e:
+        # 如果主要API失败，尝试使用Polygon.io（Massive API）
+        if massive_api_key and (e.status_code in [401, 402] or e.recoverable):
+            print(f"Warning: Financial Datasets API失败，尝试使用Polygon.io (Massive API)...")
+            try:
+                polygon_prices = get_polygon_prices(ticker, start_date, end_date, massive_api_key)
+                if polygon_prices:
+                    # Cache the results
+                    _cache.set_prices(cache_key, [p.model_dump() for p in polygon_prices])
+                    return polygon_prices
+                else:
+                    # Polygon.io返回空列表（可能是计划限制），返回空列表而不是抛出错误
+                    print(f"Info: Polygon.io无法获取数据（可能是计划限制），返回空列表")
+                    return []
+            except APIError as polygon_error:
+                # 如果是403错误（计划限制），返回空列表，不抛出错误
+                if polygon_error.status_code == 403:
+                    print(f"Warning: Polygon.io计划限制: {polygon_error.message}")
+                    print(f"Info: 返回空列表，系统将使用其他可用数据源或继续分析")
+                    # 返回空列表，让调用者继续（不抛出错误）
+                    return []
+                else:
+                    print(f"Warning: Polygon.io也失败: {str(polygon_error)}")
+                    # 如果Polygon.io也失败，抛出原始错误
+                    raise e
+            except Exception as polygon_error:
+                print(f"Warning: Polygon.io也失败: {str(polygon_error)}")
+                # 如果Polygon.io也失败，抛出原始错误
+                raise e
+        # 如果没有Massive API密钥或Polygon.io也失败，抛出原始错误
         raise
     except Exception as e:
+        # 如果主要API失败，尝试使用Polygon.io（Massive API）
+        if massive_api_key:
+            print(f"Warning: Financial Datasets API失败，尝试使用Polygon.io (Massive API)...")
+            try:
+                polygon_prices = get_polygon_prices(ticker, start_date, end_date, massive_api_key)
+                if polygon_prices:
+                    # Cache the results
+                    _cache.set_prices(cache_key, [p.model_dump() for p in polygon_prices])
+                    return polygon_prices
+            except Exception as polygon_error:
+                print(f"Warning: Polygon.io也失败: {str(polygon_error)}")
         raise APIError(f"获取价格数据失败: {str(e)}", ticker=ticker, recoverable=True)
 
     # Parse response with Pydantic model
@@ -462,6 +1110,11 @@ def get_financial_metrics(
     
     自动识别 A 股/港股代码，优先使用 DeepAlpha 接口；否则使用美股数据源。
     
+    美股数据源优先级：
+    1. OpenBB（如果启用且可用）
+    2. yfinance（免费，主要数据源，无需API密钥）
+    3. Financial Datasets API（付费，备用）
+    
     Args:
         ticker: 股票代码
         end_date: 结束日期
@@ -469,6 +1122,8 @@ def get_financial_metrics(
         limit: 返回记录数
         api_key: 用于美股数据的 API key (FINANCIAL_DATASETS_API_KEY)
         cn_api_key: 用于 A 股/港股数据的 API key (DEEPALPHA_API_KEY)
+        massive_api_key: Massive API key（备用，目前仅用于价格数据）
+        use_openbb: 是否优先使用 OpenBB
     """
     # Create a cache key that includes all parameters to ensure exact matches
     cache_key = f"{ticker}_{period}_{end_date}_{limit}"
@@ -491,6 +1146,8 @@ def get_financial_metrics(
                 # 如果返回空列表，可能是数据不存在
                 print(f"Warning: DeepAlpha returned no financial metrics for {ticker} (end_date: {end_date}). "
                       f"Please check if the ticker is valid.")
+                # 返回空列表，让智能体继续分析（使用可用数据生成中性信号）
+                return []
         except Exception as e:
             # 区分不同类型的错误
             error_type = type(e).__name__
@@ -502,21 +1159,31 @@ def get_financial_metrics(
             print(f"  Error message: {error_msg}")
             print(f"  cn_api_key provided: {'Yes' if cn_api_key else 'No'}")
             
-            # 如果是配置错误（API key 缺失），给出明确提示
+            # 如果是配置错误（API key 缺失），给出明确提示并抛出异常
             if "DeepAlphaConfigError" in error_type or "Missing DeepAlpha API key" in error_msg:
                 raise Exception(
                     f"无法获取 A 股财务指标 {ticker}: DeepAlpha API key 未配置。"
                     f"请在设置界面配置 DEEPALPHA_API_KEY，或在 .env 文件中设置，或通过参数传入 api_key。"
                     f"错误详情: {error_msg}"
                 )
-            # 如果是网络或API错误，给出详细错误信息
+            # 如果是数据缺失错误（港股接口不支持或数据不存在），返回空列表而不是抛出异常
+            # 这样智能体可以继续分析，使用可用数据生成中性信号
+            elif "all hk function formats failed" in error_msg.lower() or "不支持" in error_msg or "not found" in error_msg.lower():
+                print(f"Info: 港股 {ticker} 财务指标数据不可用，返回空列表: {error_msg}")
+                return []
+            # 如果是网络或API错误，给出详细错误信息并抛出异常
             elif "requests" in error_msg.lower() or "timeout" in error_msg.lower() or "connection" in error_msg.lower():
                 raise Exception(
                     f"无法获取 A 股财务指标 {ticker}: DeepAlpha API 网络请求失败。"
                     f"请检查网络连接和 API 服务状态。错误详情: {error_msg}"
                 )
-            # 其他错误
+            # 其他错误：对于数据缺失的情况，返回空列表；其他情况抛出异常
             else:
+                # 检查是否是数据缺失相关的错误
+                if "数据不可用" in error_msg or "no data" in error_msg.lower() or "empty" in error_msg.lower():
+                    print(f"Info: {ticker} 财务指标数据不可用，返回空列表: {error_msg}")
+                    return []
+                # 其他错误抛出异常
                 raise Exception(
                     f"无法获取 A 股财务指标 {ticker}: DeepAlpha API 调用失败。"
                     f"错误类型: {error_type}, 错误详情: {error_msg}"
@@ -536,7 +1203,19 @@ def get_financial_metrics(
         except Exception as e:
             print(f"Warning: OpenBB 获取财务指标失败，切换到其他数据源: {str(e)}")
     
-    # Fallback to US data source (Financial Datasets API 或 Massive API)
+    # 美股数据源：优先使用 yfinance（免费，主要数据源）
+    try:
+        print(f"Info: 使用yfinance获取 {ticker} 的财务指标数据...")
+        yfinance_metrics = get_yfinance_financial_metrics(ticker, end_date, period=period, limit=limit)
+        if yfinance_metrics:
+            _cache.set_financial_metrics(cache_key, [m.model_dump() for m in yfinance_metrics])
+            return yfinance_metrics
+        else:
+            print(f"Info: yfinance无法获取财务指标数据，切换到备用数据源")
+    except Exception as yf_error:
+        print(f"Warning: yfinance获取财务指标失败，切换到备用数据源: {str(yf_error)}")
+    
+    # Fallback to US data source (Financial Datasets API 或 Massive API/Polygon.io)
     url = f"https://api.financialdatasets.ai/financial-metrics/?ticker={ticker}&report_period_lte={end_date}&limit={limit}&period={period}"
     try:
         response = _make_api_request_with_fallback(
@@ -548,11 +1227,15 @@ def get_financial_metrics(
             ticker=ticker,
         )
     except APIError as e:
-        # Re-raise APIError as-is
-        raise
+        # 如果Financial Datasets API失败，返回空列表
+        # 注意：yfinance已经在前面尝试过了，如果yfinance也失败，说明数据不可用
+        print(f"Info: Financial Datasets API失败，yfinance也已尝试，返回空列表")
+        return []
     except Exception as e:
-        # Wrap other exceptions
-        raise APIError(f"获取财务指标失败: {str(e)}", ticker=ticker, recoverable=True)
+        # 如果Financial Datasets API失败，返回空列表
+        # 注意：yfinance已经在前面尝试过了，如果yfinance也失败，说明数据不可用
+        print(f"Info: Financial Datasets API失败，yfinance也已尝试，返回空列表")
+        return []
 
     # Parse response with Pydantic model
     metrics_response = FinancialMetricsResponse(**response.json())
@@ -642,6 +1325,14 @@ def search_line_items(
             print(f"Warning: OpenBB 未安装，切换到其他数据源")
         except Exception as e:
             print(f"Warning: OpenBB 获取财务数据失败，切换到其他数据源: {str(e)}")
+    
+    # 美股数据源：优先使用 yfinance（免费，主要数据源）
+    try:
+        yfinance_line_items = get_yfinance_line_items(ticker, line_items, end_date, period=period, limit=limit)
+        if yfinance_line_items:
+            return yfinance_line_items
+    except Exception as yf_error:
+        print(f"Warning: yfinance获取财务项目失败，切换到备用数据源: {str(yf_error)}")
     
     # Fallback to US data source (Financial Datasets API 或 Massive API) - 仅用于美股代码
     url = "https://api.financialdatasets.ai/financials/search/line-items"
@@ -773,8 +1464,18 @@ def get_cn_balance_sheet_line_items(
     - report_period 从类似 "20250930" 的字符串转换而来，period 暂定为 "annual"。
     """
     # 注意：对于 A 股数据，应该传入 DEEPALPHA_API_KEY（如果 api_key 为 None，则从环境变量读取）
-    client = get_deepalpha_client(api_key=api_key)
-    raw = get_balance_sheet_raw(symbol=ticker, client=client)
+    try:
+        client = get_deepalpha_client(api_key=api_key)
+        raw = get_balance_sheet_raw(symbol=ticker, client=client)
+    except Exception as e:
+        # 对于港股数据缺失的情况，返回空列表而不是抛出异常
+        # 这样智能体可以继续分析，使用可用数据生成中性信号
+        error_msg = str(e).lower()
+        if "all hk function formats failed" in error_msg or "不支持" in error_msg or "not found" in error_msg:
+            print(f"Info: 港股 {ticker} 资产负债表数据不可用，返回空列表: {str(e)}")
+            return []
+        # 其他错误（如网络错误、配置错误）仍然抛出异常
+        raise
 
     line_items: list[LineItem] = []
     for report_period, fields in raw.items():
@@ -1036,7 +1737,13 @@ def get_cn_financial_metrics(
     try:
         raw_indicators = get_financial_indicators_raw(symbol=ticker, client=client)
     except Exception as e:
-        # 重新抛出 API 调用错误，让上层处理
+        # 对于港股数据缺失的情况，返回空列表而不是抛出异常
+        # 这样智能体可以继续分析，使用可用数据生成中性信号
+        error_msg = str(e).lower()
+        if "all hk function formats failed" in error_msg or "不支持" in error_msg or "not found" in error_msg:
+            print(f"Info: 港股 {ticker} 财务指标数据不可用，返回空列表: {str(e)}")
+            return []
+        # 其他错误（如网络错误、配置错误）仍然抛出异常
         raise Exception(
             f"DeepAlpha API 调用失败 (ticker: {ticker}, function: FINANALYSIS_MAIN): {str(e)}"
         )
